@@ -95,6 +95,21 @@ dimensions:
     auto-unlocked: "&aThe %dimension% lock expired and it is now open."
 
 # ======================
+# End Crystal Cooldown
+# ======================
+# Placement cooldown per player. 20 ticks are approximately one second.
+# Set to 0 to disable it, or use /crystal-cooldown <ticks> in game.
+crystal-cooldown:
+  ticks: 0
+  messages:
+    usage: "&7Usage: &e/crystal-cooldown <ticks|off|status> &7(20 ticks = 1 second)"
+    invalid: "&cEnter a whole number between 0 and 72000 ticks."
+    updated: "&aCrystal placement cooldown set to &e%ticks% ticks&a."
+    disabled: "&aCrystal placement cooldown disabled."
+    status: "&7Crystal placement cooldown: &e%ticks% ticks &7(%seconds%s)"
+    wait: "&cWait another &e%ticks% tick(s) &cbefore placing another Crystal."
+
+# ======================
 # Base Command
 # ======================
 misc:

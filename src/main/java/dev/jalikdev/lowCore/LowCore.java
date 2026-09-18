@@ -9,6 +9,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 import dev.jalikdev.lowCore.listeners.JoinQuitListener;
 import dev.jalikdev.lowCore.listeners.DimensionLockListener;
+import dev.jalikdev.lowCore.listeners.CrystalCooldownListener;
 import dev.jalikdev.lowCore.listeners.MotdListener;
 import dev.jalikdev.lowCore.world.WorldInventoryManager;
 
@@ -77,6 +78,12 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("lock-dimension")).setExecutor(lockDimensionCommand);
         Objects.requireNonNull(getCommand("lock-dimension")).setTabCompleter(lockDimensionCommand);
         getServer().getPluginManager().registerEvents(lockDimensionCommand, this);
+
+        CrystalCooldownListener crystalCooldownListener = new CrystalCooldownListener(this);
+        CrystalCooldownCommand crystalCooldownCommand = new CrystalCooldownCommand(this, crystalCooldownListener);
+        Objects.requireNonNull(getCommand("crystal-cooldown")).setExecutor(crystalCooldownCommand);
+        Objects.requireNonNull(getCommand("crystal-cooldown")).setTabCompleter(crystalCooldownCommand);
+        getServer().getPluginManager().registerEvents(crystalCooldownListener, this);
 
         InvseeCommand invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);

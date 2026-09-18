@@ -21,6 +21,12 @@ commands:
     permission: lowcore.dimensions
     aliases: [lockdimension, dimensionlock]
 
+  crystal-cooldown:
+    description: Configure the per-player End Crystal placement cooldown
+    usage: /crystal-cooldown <ticks|off|status>
+    permission: lowcore.crystal-cooldown
+    aliases: [crystalcd, ccd]
+
   fly:
     description: Toggles flight
     usage: /fly
@@ -174,6 +180,14 @@ permissions:
 
   lowcore.dimensions.bypass:
     description: Enter dimensions even while they are locked
+    default: false
+
+  lowcore.crystal-cooldown:
+    description: Configure the End Crystal placement cooldown
+    default: op
+
+  lowcore.crystal-cooldown.bypass:
+    description: Bypass the End Crystal placement cooldown
     default: false
 
   lowcore.fly:

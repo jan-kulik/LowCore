@@ -87,6 +87,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config.");
         LowCore.sendMessage(sender, "&a/lowcore dimension &7- Lock or unlock the Nether and End.");
         LowCore.sendMessage(sender, "&a/lock-dimension <nether|end> [time] &7- Permanent or timed dimension lock.");
+        LowCore.sendMessage(sender, "&a/crystal-cooldown <ticks|off|status> &7- Set the Crystal placement delay.");
 
         LowCore.sendMessage(sender, "&a/ec &7- Open your ender chest.");
         LowCore.sendMessage(sender, "&a/enchant &7- Advanced enchanting / renaming.");

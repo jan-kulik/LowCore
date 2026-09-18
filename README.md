@@ -25,6 +25,7 @@ and multiple clean, well-structured systems.
 - **Logout Tracking System** — Stores player logout positions using SQLite
 - **Dimension Locks** — Lock the Nether or End, including portal creation and travel
 - **Timed Dimension Locks** — Automatically unlock dimensions after durations such as `30m`, `2h`, or `1d12h`
+- **Crystal Cooldown** — Configure a tick-accurate End Crystal placement delay per player
 
 ---
 
@@ -35,6 +36,7 @@ and multiple clean, well-structured systems.
 | `/lowcore`     | Plugin info, reload, debug tools  | `lowcore.command`                      |
 | `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
 | `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
+| `/crystal-cooldown <ticks\|off\|status>` | Configure Crystal placement speed | `lowcore.crystal-cooldown` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -75,6 +77,19 @@ GUI. The available timer buttons can be customized under
 Supported duration units are `s`, `m`, `h`, `d`, and `w`, up to 365 days. While
 the End is locked, Ender Eyes cannot be inserted into End Portal Frames. Players
 already inside a locked dimension can always leave it.
+
+---
+
+## 💎 Crystal Cooldown
+
+```text
+/crystal-cooldown 10       # one Crystal every 10 ticks
+/crystal-cooldown status   # show the current setting
+/crystal-cooldown off      # disable the cooldown
+```
+
+The cooldown is tracked separately for every player. `20` ticks are approximately
+one second. Players with `lowcore.crystal-cooldown.bypass` are not limited.
 
 ---
 
