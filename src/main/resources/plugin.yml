@@ -27,6 +27,12 @@ commands:
     permission: lowcore.crystal-cooldown
     aliases: [crystalcd, ccd]
 
+  anti-freecam:
+    description: Configure Freecam and Meteor client detection
+    usage: /anti-freecam [on|off|status|punishment|check]
+    permission: lowcore.antifreecam.admin
+    aliases: [antifreecam, afc]
+
   fly:
     description: Toggles flight
     usage: /fly
@@ -188,6 +194,18 @@ permissions:
 
   lowcore.crystal-cooldown.bypass:
     description: Bypass the End Crystal placement cooldown
+    default: false
+
+  lowcore.antifreecam.admin:
+    description: Configure anti-freecam and manually check players
+    default: op
+
+  lowcore.antifreecam.alerts:
+    description: Receive anti-freecam detection alerts
+    default: op
+
+  lowcore.antifreecam.bypass:
+    description: Skip automatic and manual anti-freecam probes
     default: false
 
   lowcore.fly:

@@ -110,6 +110,39 @@ crystal-cooldown:
     wait: "&cWait another &e%ticks% tick(s) &cbefore placing another Crystal."
 
 # ======================
+# Anti-Freecam / Meteor Detection
+# ======================
+# Uses Paper's virtual sign API and client-side translation/keybind resolution.
+# This detects known client translations, not whether Freecam was actively used.
+# Failed, blocked or timed-out probes never trigger punishment.
+anti-freecam:
+  enabled: false
+  punishment: "kick" # notify, kick or ban
+  join-delay-ticks: 60
+  close-delay-ticks: 2
+  timeout-ticks: 40
+  double-check: true
+  messages:
+    usage: "&7Usage: &e/anti-freecam [gui|on|off|toggle|status|punishment <notify|kick|ban>|check <player>]"
+    enabled: "&aAnti-Freecam detection enabled. Joining players will be checked."
+    disabled: "&eAnti-Freecam detection disabled."
+    status: "&7Anti-Freecam: %status%&7, punishment: &e%punishment%&7."
+    punishment-usage: "&7Usage: &e/anti-freecam punishment <notify|kick|ban>"
+    punishment-updated: "&aAnti-Freecam punishment set to &e%punishment%&a."
+    check-usage: "&7Usage: &e/anti-freecam check <player>"
+    check-started: "&7Started a Freecam/Meteor check for &e%player%&7."
+    already-running: "&e%player% &7is already being checked."
+    bypassed: "&e%player% &7has the anti-freecam bypass permission."
+    failed: "&cThe check for &e%player% &ccould not be started."
+    confirming: "&e%player% &7matched &e%mods%&7. Running confirmation check..."
+    clean: "&aNo Freecam or Meteor translation keys detected for &e%player%&a."
+    protected: "&e%player% returned a protected/filtered sign response. No punishment was applied."
+    timeout: "&eThe check for %player% timed out. No punishment was applied."
+    inconclusive: "&eThe confirmation check for %player% was inconclusive. No punishment was applied."
+    detected: "&cDetected &e%mods% &con &e%player%&c."
+    kick-reason: "&cDisallowed client modification detected: &e%mods%"
+
+# ======================
 # Base Command
 # ======================
 misc:

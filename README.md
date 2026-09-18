@@ -25,6 +25,7 @@ and multiple clean, well-structured systems.
 - **Logout Tracking System** — Stores player logout positions using SQLite
 - **Dimension Locks** — Lock the Nether or End, including portal creation and travel
 - **Timed Dimension Locks** — Automatically unlock dimensions after durations such as `30m`, `2h`, or `1d12h`
+- **Anti-Freecam** — Optional virtual-sign checks for Freecam and Meteor Client with confirmation and configurable punishment
 - **Crystal Cooldown** — Configure a tick-accurate End Crystal placement delay per player
 
 ---
@@ -37,6 +38,9 @@ and multiple clean, well-structured systems.
 | `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
 | `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
 | `/crystal-cooldown <ticks\|off\|status>` | Configure Crystal placement speed | `lowcore.crystal-cooldown` |
+| `/anti-freecam [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antifreecam.admin` |
+| `/anti-freecam punishment <notify\|kick\|ban>` | Select the action after a confirmed match | `lowcore.antifreecam.admin` |
+| `/anti-freecam check <player>` | Manually check an online player | `lowcore.antifreecam.admin` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -91,6 +95,19 @@ already inside a locked dimension can always leave it.
 The cooldown is tracked separately for every player. `20` ticks are approximately
 one second. Players with `lowcore.crystal-cooldown.bypass` are not limited.
 
+## 🕵️ Anti-Freecam
+
+Run `/anti-freecam` to open the settings GUI. The feature is disabled by
+default. It probes the Freecam keys `key.freecam.toggle` and
+`freecam.config.gui.title`, plus Meteor Client's
+`key.meteor-client.open-gui`, through Paper's virtual-sign API. Confirmed
+matches can notify staff, kick, or permanently ban. A second probe is enabled
+by default, and blocked or timed-out responses never cause punishment.
+
+The check detects matching client translations, not whether Freecam was
+actively used. Players with `lowcore.antifreecam.bypass` are skipped; staff
+with `lowcore.antifreecam.alerts` receive results.
+
 ---
 
 ## ⚙️ Config
@@ -104,6 +121,7 @@ LowCore provides a clean and fully documented `config.yml` including:
 - Performance monitor settings
 - Debug settings
 - Nether and End access locks (`dimensions.nether-locked` / `dimensions.end-locked`)
+- Freecam/Meteor detection and punishment (`anti-freecam.*`)
 
 
 ---

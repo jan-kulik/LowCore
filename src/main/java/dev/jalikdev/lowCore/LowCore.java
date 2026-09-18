@@ -1,5 +1,6 @@
 package dev.jalikdev.lowCore;
 
+import dev.jalikdev.lowCore.antifreecam.AntiFreecamManager;
 import dev.jalikdev.lowCore.commands.*;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.performance.PerformanceMonitor;
@@ -36,6 +37,7 @@ public class LowCore extends JavaPlugin {
 
     private PerformanceMonitor performanceMonitor;
     private DimensionLockManager dimensionLockManager;
+    private AntiFreecamManager antiFreecamManager;
 
     private DatabaseManager databaseManager;
     private LastLocationRepository lastLocationRepository;
@@ -69,6 +71,7 @@ public class LowCore extends JavaPlugin {
         lastLocationRepository = new LastLocationRepository(databaseManager);
         offlineInventoryRepository = new OfflineInventoryRepository(databaseManager);
         dimensionLockManager = new DimensionLockManager(this);
+        antiFreecamManager = new AntiFreecamManager(this);
 
         LowcoreCommand lowcoreCommand = new LowcoreCommand(this);
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
@@ -84,6 +87,12 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("crystal-cooldown")).setExecutor(crystalCooldownCommand);
         Objects.requireNonNull(getCommand("crystal-cooldown")).setTabCompleter(crystalCooldownCommand);
         getServer().getPluginManager().registerEvents(crystalCooldownListener, this);
+
+        AntiFreecamCommand antiFreecamCommand = new AntiFreecamCommand(antiFreecamManager);
+        Objects.requireNonNull(getCommand("anti-freecam")).setExecutor(antiFreecamCommand);
+        Objects.requireNonNull(getCommand("anti-freecam")).setTabCompleter(antiFreecamCommand);
+        getServer().getPluginManager().registerEvents(antiFreecamCommand, this);
+        getServer().getPluginManager().registerEvents(antiFreecamManager, this);
 
         InvseeCommand invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);
@@ -207,6 +216,10 @@ public class LowCore extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (antiFreecamManager != null) {
+            antiFreecamManager.shutdown();
+        }
+
         if (performanceMonitor != null) {
             performanceMonitor.stop();
         }
@@ -292,6 +305,9 @@ public class LowCore extends JavaPlugin {
     public void reloadLowCoreConfig(CommandSender sender) {
         reloadConfig();
         loadPrefix();
+        if (antiFreecamManager != null && !antiFreecamManager.isEnabled()) {
+            antiFreecamManager.shutdown();
+        }
         sendConfigMessage(sender, "reload");
         getLogger().info("Configuration reloaded by " + sender.getName());
     }
@@ -331,5 +347,9 @@ public class LowCore extends JavaPlugin {
 
     public DimensionLockManager getDimensionLockManager() {
         return dimensionLockManager;
+    }
+
+    public AntiFreecamManager getAntiFreecamManager() {
+        return antiFreecamManager;
     }
 }
