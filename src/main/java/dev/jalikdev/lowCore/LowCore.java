@@ -251,11 +251,37 @@ public class LowCore extends JavaPlugin {
         // the early terrain-loading phase while preserving custom values.
         File configFile = new File(getDataFolder(), "config.yml");
         YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(configFile);
+        boolean changed = false;
+
         if (!diskConfig.getBoolean("anti-freecam.loading-screen-migrated", false)) {
             if (diskConfig.getLong("anti-freecam.join-delay-ticks", 60L) == 60L) {
                 getConfig().set("anti-freecam.join-delay-ticks", 1L);
             }
             getConfig().set("anti-freecam.loading-screen-migrated", true);
+            changed = true;
+        }
+
+        // 2.5.0 started after one tick, which some clients lost among their
+        // initial chunk packets. Give login ten ticks, retry once, and erase
+        // the client-only sign immediately so neither automatic attempt flashes.
+        if (!diskConfig.getBoolean("anti-freecam.invisible-probe-migrated", false)) {
+            if (getConfig().getLong("anti-freecam.join-delay-ticks", 1L) == 1L) {
+                getConfig().set("anti-freecam.join-delay-ticks", 10L);
+            }
+            if (getConfig().getLong("anti-freecam.close-delay-ticks", 2L) == 2L) {
+                getConfig().set("anti-freecam.close-delay-ticks", 1L);
+            }
+            if (!diskConfig.contains("anti-freecam.join-attempts")) {
+                getConfig().set("anti-freecam.join-attempts", 2);
+            }
+            if (!diskConfig.contains("anti-freecam.join-retry-delay-ticks")) {
+                getConfig().set("anti-freecam.join-retry-delay-ticks", 10L);
+            }
+            getConfig().set("anti-freecam.invisible-probe-migrated", true);
+            changed = true;
+        }
+
+        if (changed) {
             saveConfig();
         }
     }

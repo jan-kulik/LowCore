@@ -104,8 +104,10 @@ default. It probes the Freecam keys `key.freecam.toggle` and
 `key.meteor-client.open-gui`, through Paper's virtual-sign API. Confirmed
 matches can notify staff, kick, or permanently ban. A second probe is enabled
 by default, and blocked or timed-out responses never cause punishment. Automatic
-checks start during the terrain-loading screen so the probe does not interrupt
-normal gameplay.
+checks start during the terrain-loading screen and retry once if the client's
+initial chunk packets swallow the first probe. The temporary client-side sign
+is replaced with the real block immediately and its editor is closed after one tick, so
+the check does not leave or visibly flash a sign during normal gameplay.
 
 The check detects matching client translations, not whether Freecam was
 actively used. Players with `lowcore.antifreecam.bypass` are skipped; staff

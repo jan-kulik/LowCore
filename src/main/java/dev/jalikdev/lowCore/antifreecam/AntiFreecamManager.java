@@ -121,10 +121,11 @@ public final class AntiFreecamManager implements Listener {
 
     public StartResult startManualCheck(Player target, CommandSender initiator) {
         UUID initiatorId = initiator instanceof Player player ? player.getUniqueId() : null;
-        return startCheck(target, initiatorId, true, Set.of());
+        return startCheck(target, initiatorId, true, Set.of(), 0);
     }
 
-    private StartResult startCheck(Player target, UUID initiatorId, boolean manual, Set<String> firstDetections) {
+    private StartResult startCheck(Player target, UUID initiatorId, boolean manual,
+                                   Set<String> firstDetections, int automaticAttempt) {
         if (!target.isOnline()) {
             return StartResult.OFFLINE;
         }
@@ -144,7 +145,8 @@ public final class AntiFreecamManager implements Listener {
         Location signLocation = findProbeLocation(target);
         ProbeSession session = new ProbeSession(
                 target.getUniqueId(), initiatorId, manual, !firstDetections.isEmpty(),
-                Set.copyOf(firstDetections), signLocation, freecamFallback, meteorFallback);
+                Set.copyOf(firstDetections), automaticAttempt,
+                signLocation, freecamFallback, meteorFallback);
         active.put(target.getUniqueId(), session);
 
         try {
@@ -156,6 +158,11 @@ public final class AntiFreecamManager implements Listener {
                     Component.keybind(CONTROL_KEY)
             ));
             target.openVirtualSign(Position.block(signLocation), Side.FRONT);
+
+            // Restore the real client-side block immediately, before a rendered
+            // frame can expose the virtual sign. The delayed close packet below
+            // remains a compatibility fallback for clients that keep it open.
+            restoreClientBlock(target, signLocation);
         } catch (RuntimeException exception) {
             active.remove(target.getUniqueId());
             restoreClientBlock(target, signLocation);
@@ -164,7 +171,7 @@ public final class AntiFreecamManager implements Listener {
             return StartResult.FAILED;
         }
 
-        long closeDelay = clamp(plugin.getConfig().getLong("anti-freecam.close-delay-ticks", 2L), 1L, 20L);
+        long closeDelay = clamp(plugin.getConfig().getLong("anti-freecam.close-delay-ticks", 1L), 1L, 20L);
         session.closeTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (active.get(target.getUniqueId()) == session && target.isOnline()) {
                 target.closeInventory();
@@ -183,13 +190,13 @@ public final class AntiFreecamManager implements Listener {
                 || isBedrockPlayer(joiningPlayer)) {
             return;
         }
-        // One tick keeps the probe inside the terrain-loading phase while still
-        // allowing the initial world packets to be queued first.
-        long delay = clamp(plugin.getConfig().getLong("anti-freecam.join-delay-ticks", 1L), 1L, 200L);
+        // A short delay keeps the probe inside the terrain-loading phase while
+        // allowing the client's initial world/chunk packets to settle first.
+        long delay = clamp(plugin.getConfig().getLong("anti-freecam.join-delay-ticks", 10L), 1L, 200L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Player player = event.getPlayer();
             if (player.isOnline() && isEnabled() && !isBedrockPlayer(player)) {
-                startCheck(player, null, false, Set.of());
+                startCheck(player, null, false, Set.of(), 1);
             }
         }, delay);
     }
@@ -247,7 +254,7 @@ public final class AntiFreecamManager implements Listener {
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 Player target = Bukkit.getPlayer(session.playerId);
                 if (target != null && target.isOnline()) {
-                    startCheck(target, session.initiatorId, session.manual, detected);
+                    startCheck(target, session.initiatorId, session.manual, detected, session.automaticAttempt);
                 }
             }, confirmationDelay);
             return;
@@ -287,6 +294,21 @@ public final class AntiFreecamManager implements Listener {
         Player player = Bukkit.getPlayer(session.playerId);
         if (player != null) {
             restoreClientBlock(player, session.location);
+            int maximumAttempts = (int) clamp(
+                    plugin.getConfig().getLong("anti-freecam.join-attempts", 2L), 1L, 3L);
+            if (!session.manual && !session.confirmation && session.automaticAttempt < maximumAttempts
+                    && isEnabled() && !isBedrockPlayer(player)) {
+                long retryDelay = clamp(
+                        plugin.getConfig().getLong("anti-freecam.join-retry-delay-ticks", 10L), 1L, 100L);
+                plugin.getLogger().info("Retrying early anti-freecam join probe for " + player.getName()
+                        + " (attempt " + (session.automaticAttempt + 1) + "/" + maximumAttempts + ")");
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (player.isOnline() && isEnabled() && !isBedrockPlayer(player)) {
+                        startCheck(player, null, false, Set.of(), session.automaticAttempt + 1);
+                    }
+                }, retryDelay);
+                return;
+            }
             saveLog(session, player, session.confirmation ? "INCONCLUSIVE" : "TIMEOUT",
                     session.firstDetections, "none", "The client did not return a sign response in time");
             if (session.manual) {
@@ -515,6 +537,7 @@ public final class AntiFreecamManager implements Listener {
         private final boolean manual;
         private final boolean confirmation;
         private final Set<String> firstDetections;
+        private final int automaticAttempt;
         private final Location location;
         private final String freecamFallback;
         private final String meteorFallback;
@@ -522,13 +545,14 @@ public final class AntiFreecamManager implements Listener {
         private BukkitTask timeoutTask;
 
         private ProbeSession(UUID playerId, UUID initiatorId, boolean manual, boolean confirmation,
-                             Set<String> firstDetections, Location location,
+                             Set<String> firstDetections, int automaticAttempt, Location location,
                              String freecamFallback, String meteorFallback) {
             this.playerId = playerId;
             this.initiatorId = initiatorId;
             this.manual = manual;
             this.confirmation = confirmation;
             this.firstDetections = firstDetections;
+            this.automaticAttempt = automaticAttempt;
             this.location = location;
             this.freecamFallback = freecamFallback;
             this.meteorFallback = meteorFallback;

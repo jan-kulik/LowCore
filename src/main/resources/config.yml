@@ -118,10 +118,14 @@ crystal-cooldown:
 anti-freecam:
   enabled: false
   punishment: "kick" # notify, kick or ban
-  # One tick starts the automatic check while the client is loading terrain.
-  join-delay-ticks: 1
+  # Start shortly after login, while the player is normally still loading terrain.
+  join-delay-ticks: 10
   loading-screen-migrated: true
-  close-delay-ticks: 2
+  invisible-probe-migrated: true
+  # Retry once if the login/chunk packets swallowed the first virtual-sign probe.
+  join-attempts: 2
+  join-retry-delay-ticks: 10
+  close-delay-ticks: 1
   confirmation-delay-ticks: 2
   timeout-ticks: 40
   double-check: true
