@@ -1,7 +1,7 @@
 name: LowCore
-version: '1.4.0'
+version: '${project.version}'
 main: dev.jalikdev.lowCore.LowCore
-api-version: '1.21'
+api-version: '26.2'
 author: 'jan'
 
 # -------------------------------------------------
@@ -157,6 +157,18 @@ permissions:
   lowcore.command:
     description: Use /lowcore
     default: op
+
+  lowcore.reload:
+    description: Reload the LowCore configuration
+    default: op
+
+  lowcore.dimensions:
+    description: Lock, unlock and inspect dimensions
+    default: op
+
+  lowcore.dimensions.bypass:
+    description: Enter dimensions even while they are locked
+    default: false
 
   lowcore.fly:
     description: Use /fly

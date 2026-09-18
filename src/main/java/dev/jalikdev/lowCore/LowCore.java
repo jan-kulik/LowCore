@@ -7,6 +7,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 import dev.jalikdev.lowCore.listeners.JoinQuitListener;
+import dev.jalikdev.lowCore.listeners.DimensionLockListener;
 import dev.jalikdev.lowCore.listeners.MotdListener;
 import dev.jalikdev.lowCore.world.WorldInventoryManager;
 
@@ -182,6 +183,7 @@ public class LowCore extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(new OfflineInventoryListener(this), this);
+        getServer().getPluginManager().registerEvents(new DimensionLockListener(this), this);
 
         performanceMonitor = new PerformanceMonitor(this);
         performanceMonitor.start();

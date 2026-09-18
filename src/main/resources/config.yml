@@ -58,6 +58,21 @@ messages:
   unknown-player: "&cThis player is not online."
 
 # ======================
+# Dimension Locks
+# ======================
+# When locked, players and entities cannot enter the dimension and new Nether
+# portals cannot be activated. Leaving a locked dimension is always allowed.
+# Operators can also use: /lowcore dimension <nether|end> <lock|unlock|status>
+dimensions:
+  nether-locked: false
+  end-locked: false
+  messages:
+    locked: "&cThe %dimension% is currently locked."
+    usage: "&7Usage: &e/lowcore dimension <nether|end> <lock|unlock|status>"
+    status: "&7The %dimension% is currently %status%&7."
+    updated: "&7The %dimension% is now %status%&7."
+
+# ======================
 # Base Command
 # ======================
 misc:

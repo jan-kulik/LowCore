@@ -8,7 +8,7 @@
 ---
 
 ## 🚀 Overview
-LowCore is a modern utility & admin plugin designed for **Paper/Spigot 1.21+** servers.  
+LowCore is a modern utility & admin plugin designed for **Paper 26.2** servers.
 It includes high-quality commands, performance tools, GUI utilities, a database module,  
 and multiple clean, well-structured systems.
 
@@ -23,6 +23,7 @@ and multiple clean, well-structured systems.
 - **Join/Quit Messages** — Fully configurable
 - **MOTD System** — Two-line MOTD with placeholders
 - **Logout Tracking System** — Stores player logout positions using SQLite
+- **Dimension Locks** — Lock the Nether or End, including portal creation and travel
 
 ---
 
@@ -31,6 +32,7 @@ and multiple clean, well-structured systems.
 | Command        | Description                       | Permission                             |
 |----------------|-----------------------------------|----------------------------------------|
 | `/lowcore`     | Plugin info, reload, debug tools  | `lowcore.command`                      |
+| `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -64,6 +66,7 @@ LowCore provides a clean and fully documented `config.yml` including:
 - Cleanup GUI settings
 - Performance monitor settings
 - Debug settings
+- Nether and End access locks (`dimensions.nether-locked` / `dimensions.end-locked`)
 
 
 ---
@@ -78,8 +81,8 @@ LowCore provides a clean and fully documented `config.yml` including:
 ---
 
 ## 🛠 Requirements
-- **Java 21+**
-- **Paper/Spigot 1.21+**
+- **Java 25+**
+- **Paper 26.2**
 - Fully compatible with **LuckPerms**, **Vault**, and all major permission plugins
 
 ---

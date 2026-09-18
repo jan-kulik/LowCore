@@ -4,6 +4,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.ChatColor;
 import dev.jalikdev.lowCore.LowCore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +16,9 @@ import java.util.List;
 public class LowcoreCommand implements CommandExecutor, TabCompleter {
 
     private final LowCore plugin;
-    private final List<String> mainSubcommands = Arrays.asList("help", "info", "reload");
+    private final List<String> mainSubcommands = Arrays.asList("help", "info", "reload", "dimension");
+    private final List<String> dimensions = Arrays.asList("nether", "end");
+    private final List<String> dimensionActions = Arrays.asList("lock", "unlock", "status");
     private final List<String> helpTopics = Arrays.asList(
             "lowcore", "ec", "enchant", "feed", "fly", "gm", "hat", "heal", "invsee", "spawnmob"
     );
@@ -65,6 +68,11 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (sub.equals("dimension") || sub.equals("dimensions")) {
+            handleDimensionCommand(sender, args);
+            return true;
+        }
+
         sendMainHelp(sender);
         return true;
     }
@@ -76,6 +84,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&a/lowcore help &7- Show this help.");
         LowCore.sendMessage(sender, "&a/lowcore info &7- Plugin information.");
         LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config.");
+        LowCore.sendMessage(sender, "&a/lowcore dimension &7- Lock or unlock the Nether and End.");
 
         LowCore.sendMessage(sender, "&a/ec &7- Open your ender chest.");
         LowCore.sendMessage(sender, "&a/enchant &7- Advanced enchanting / renaming.");
@@ -105,6 +114,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
                 LowCore.sendMessage(sender, "&a/lowcore help <command> &7- Detailed help for one command.");
                 LowCore.sendMessage(sender, "&a/lowcore info &7- Show plugin information.");
                 LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config (requires &flowcore.reload&7).");
+                LowCore.sendMessage(sender, "&a/lowcore dimension <nether|end> <lock|unlock|status> &7- Manage dimension access.");
                 break;
 
             case "ec":
@@ -230,6 +240,62 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
             return result;
         }
 
+        if (args.length == 2 && isDimensionSubcommand(args[0])) {
+            return matching(dimensions, args[1]);
+        }
+
+        if (args.length == 3 && isDimensionSubcommand(args[0])) {
+            return matching(dimensionActions, args[2]);
+        }
+
+        return result;
+    }
+
+    private void handleDimensionCommand(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("lowcore.dimensions")) {
+            LowCore.sendConfigMessage(sender, "no-permission");
+            return;
+        }
+
+        if (args.length != 3 || !dimensions.contains(args[1].toLowerCase())
+                || !dimensionActions.contains(args[2].toLowerCase())) {
+            LowCore.sendConfigMessage(sender, "dimensions.usage");
+            return;
+        }
+
+        String dimension = args[1].toLowerCase();
+        String action = args[2].toLowerCase();
+        String configPath = "dimensions." + dimension + "-locked";
+
+        if (action.equals("status")) {
+            sendDimensionStatus(sender, dimension, plugin.getConfig().getBoolean(configPath, false), "dimensions.status");
+            return;
+        }
+
+        boolean locked = action.equals("lock");
+        plugin.getConfig().set(configPath, locked);
+        plugin.saveConfig();
+        sendDimensionStatus(sender, dimension, locked, "dimensions.updated");
+    }
+
+    private void sendDimensionStatus(CommandSender sender, String dimension, boolean locked, String messageKey) {
+        LowCore.sendConfigMessage(sender, messageKey,
+                "dimension", dimension.equals("nether") ? "Nether" : "End",
+                "status", locked ? ChatColor.RED + "locked" : ChatColor.GREEN + "unlocked");
+    }
+
+    private boolean isDimensionSubcommand(String value) {
+        return value.equalsIgnoreCase("dimension") || value.equalsIgnoreCase("dimensions");
+    }
+
+    private List<String> matching(List<String> values, String input) {
+        String normalized = input.toLowerCase();
+        List<String> result = new ArrayList<>();
+        for (String value : values) {
+            if (value.startsWith(normalized)) {
+                result.add(value);
+            }
+        }
         return result;
     }
 }
