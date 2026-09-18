@@ -65,12 +65,24 @@ messages:
 # Operators can also use: /lowcore dimension <nether|end> <lock|unlock|status>
 dimensions:
   nether-locked: false
+  nether-unlock-at: 0
   end-locked: false
+  end-unlock-at: 0
   messages:
     locked: "&cThe %dimension% is currently locked."
+    end-frame-blocked: "&cThe End is locked, so Ender Eyes cannot be inserted."
     usage: "&7Usage: &e/lowcore dimension <nether|end> <lock|unlock|status>"
     status: "&7The %dimension% is currently %status%&7."
     updated: "&7The %dimension% is now %status%&7."
+    command-usage: "&7Usage: &e/lock-dimension <nether|end> [duration|lock|unlock|status]"
+    invalid-duration: "&cInvalid duration. Use combinations such as &e30m&c, &e2h&c, &e1d12h&c (maximum 365d)."
+    locked-permanent: "&cThe %dimension% is now locked permanently."
+    locked-timed: "&cThe %dimension% is now locked for %duration%."
+    unlocked: "&aThe %dimension% is now unlocked."
+    status-open: "&aThe %dimension% is unlocked."
+    status-permanent: "&cThe %dimension% is locked permanently."
+    status-timed: "&cThe %dimension% is locked for another %duration%."
+    auto-unlocked: "&aThe %dimension% lock expired and it is now open."
 
 # ======================
 # Base Command

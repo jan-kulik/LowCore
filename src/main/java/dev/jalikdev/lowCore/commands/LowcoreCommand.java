@@ -6,6 +6,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.ChatColor;
 import dev.jalikdev.lowCore.LowCore;
+import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -85,6 +86,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&a/lowcore info &7- Plugin information.");
         LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config.");
         LowCore.sendMessage(sender, "&a/lowcore dimension &7- Lock or unlock the Nether and End.");
+        LowCore.sendMessage(sender, "&a/lock-dimension <nether|end> [time] &7- Permanent or timed dimension lock.");
 
         LowCore.sendMessage(sender, "&a/ec &7- Open your ender chest.");
         LowCore.sendMessage(sender, "&a/enchant &7- Advanced enchanting / renaming.");
@@ -265,16 +267,19 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
 
         String dimension = args[1].toLowerCase();
         String action = args[2].toLowerCase();
-        String configPath = "dimensions." + dimension + "-locked";
+        Dimension selected = Dimension.fromInput(dimension).orElseThrow();
 
         if (action.equals("status")) {
-            sendDimensionStatus(sender, dimension, plugin.getConfig().getBoolean(configPath, false), "dimensions.status");
+            sendDimensionStatus(sender, dimension, plugin.getDimensionLockManager().isLocked(selected), "dimensions.status");
             return;
         }
 
         boolean locked = action.equals("lock");
-        plugin.getConfig().set(configPath, locked);
-        plugin.saveConfig();
+        if (locked) {
+            plugin.getDimensionLockManager().lock(selected, 0L);
+        } else {
+            plugin.getDimensionLockManager().unlock(selected);
+        }
         sendDimensionStatus(sender, dimension, locked, "dimensions.updated");
     }
 

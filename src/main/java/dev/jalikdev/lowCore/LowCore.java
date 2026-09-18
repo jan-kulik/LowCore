@@ -1,6 +1,7 @@
 package dev.jalikdev.lowCore;
 
 import dev.jalikdev.lowCore.commands.*;
+import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.performance.PerformanceMonitor;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -33,6 +34,7 @@ public class LowCore extends JavaPlugin {
     private String latestVersion = null;
 
     private PerformanceMonitor performanceMonitor;
+    private DimensionLockManager dimensionLockManager;
 
     private DatabaseManager databaseManager;
     private LastLocationRepository lastLocationRepository;
@@ -65,10 +67,15 @@ public class LowCore extends JavaPlugin {
         worldInventoryManager = new WorldInventoryManager(this);
         lastLocationRepository = new LastLocationRepository(databaseManager);
         offlineInventoryRepository = new OfflineInventoryRepository(databaseManager);
+        dimensionLockManager = new DimensionLockManager(this);
 
         LowcoreCommand lowcoreCommand = new LowcoreCommand(this);
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
         Objects.requireNonNull(getCommand("lowcore")).setTabCompleter(lowcoreCommand);
+
+        LockDimensionCommand lockDimensionCommand = new LockDimensionCommand(dimensionLockManager);
+        Objects.requireNonNull(getCommand("lock-dimension")).setExecutor(lockDimensionCommand);
+        Objects.requireNonNull(getCommand("lock-dimension")).setTabCompleter(lockDimensionCommand);
 
         InvseeCommand invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);
@@ -183,7 +190,8 @@ public class LowCore extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(new OfflineInventoryListener(this), this);
-        getServer().getPluginManager().registerEvents(new DimensionLockListener(this), this);
+        getServer().getPluginManager().registerEvents(new DimensionLockListener(this, dimensionLockManager), this);
+        dimensionLockManager.start();
 
         performanceMonitor = new PerformanceMonitor(this);
         performanceMonitor.start();
@@ -193,6 +201,10 @@ public class LowCore extends JavaPlugin {
     public void onDisable() {
         if (performanceMonitor != null) {
             performanceMonitor.stop();
+        }
+
+        if (dimensionLockManager != null) {
+            dimensionLockManager.stop();
         }
 
         if (databaseManager != null) {
@@ -307,5 +319,9 @@ public class LowCore extends JavaPlugin {
 
     public WorldInventoryManager getWorldInventoryManager() {
         return worldInventoryManager;
+    }
+
+    public DimensionLockManager getDimensionLockManager() {
+        return dimensionLockManager;
     }
 }

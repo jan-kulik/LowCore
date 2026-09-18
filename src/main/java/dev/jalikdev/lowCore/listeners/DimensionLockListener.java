@@ -1,14 +1,19 @@
 package dev.jalikdev.lowCore.listeners;
 
 import dev.jalikdev.lowCore.LowCore;
+import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
+import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityPortalEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.world.PortalCreateEvent;
@@ -22,10 +27,12 @@ public class DimensionLockListener implements Listener {
     private static final long MESSAGE_COOLDOWN_MILLIS = 2_000L;
 
     private final LowCore plugin;
+    private final DimensionLockManager lockManager;
     private final Map<UUID, Long> lastMessageAt = new HashMap<>();
 
-    public DimensionLockListener(LowCore plugin) {
+    public DimensionLockListener(LowCore plugin, DimensionLockManager lockManager) {
         this.plugin = plugin;
+        this.lockManager = lockManager;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -37,7 +44,7 @@ public class DimensionLockListener implements Listener {
 
         World.Environment from = event.getFrom().getWorld().getEnvironment();
         World.Environment to = destination.getWorld().getEnvironment();
-        if (!shouldBlockTransfer(from, to, isNetherLocked(), isEndLocked())
+        if (!shouldBlockTransfer(from, to, lockManager.isLocked(Dimension.NETHER), lockManager.isLocked(Dimension.END))
                 || event.getPlayer().hasPermission("lowcore.dimensions.bypass")) {
             return;
         }
@@ -56,14 +63,14 @@ public class DimensionLockListener implements Listener {
         Entity entity = event.getEntity();
         World.Environment from = entity.getWorld().getEnvironment();
         World.Environment to = destination.getWorld().getEnvironment();
-        if (shouldBlockTransfer(from, to, isNetherLocked(), isEndLocked())) {
+        if (shouldBlockTransfer(from, to, lockManager.isLocked(Dimension.NETHER), lockManager.isLocked(Dimension.END))) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPortalCreate(PortalCreateEvent event) {
-        if (shouldBlockPortalCreation(event.getReason(), isNetherLocked())) {
+        if (shouldBlockPortalCreation(event.getReason(), lockManager.isLocked(Dimension.NETHER))) {
             event.setCancelled(true);
 
             if (event.getEntity() instanceof Player player) {
@@ -72,17 +79,22 @@ public class DimensionLockListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEndPortalFrameInteract(PlayerInteractEvent event) {
+        Material clicked = event.getClickedBlock() == null ? null : event.getClickedBlock().getType();
+        Material item = event.getItem() == null ? null : event.getItem().getType();
+        if (!shouldBlockEndFrameInteraction(event.getAction(), clicked, item, lockManager.isLocked(Dimension.END))
+                || event.getPlayer().hasPermission("lowcore.dimensions.bypass")) {
+            return;
+        }
+
+        event.setCancelled(true);
+        LowCore.sendConfigMessage(event.getPlayer(), "dimensions.end-frame-blocked");
+    }
+
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         lastMessageAt.remove(event.getPlayer().getUniqueId());
-    }
-
-    private boolean isNetherLocked() {
-        return plugin.getConfig().getBoolean("dimensions.nether-locked", false);
-    }
-
-    private boolean isEndLocked() {
-        return plugin.getConfig().getBoolean("dimensions.end-locked", false);
     }
 
     private void notifyLocked(Player player, World.Environment environment) {
@@ -108,5 +120,12 @@ public class DimensionLockListener implements Listener {
     static boolean shouldBlockPortalCreation(PortalCreateEvent.CreateReason reason, boolean netherLocked) {
         return netherLocked && (reason == PortalCreateEvent.CreateReason.FIRE
                 || reason == PortalCreateEvent.CreateReason.NETHER_PAIR);
+    }
+
+    static boolean shouldBlockEndFrameInteraction(Action action, Material clicked, Material item, boolean endLocked) {
+        return endLocked
+                && action == Action.RIGHT_CLICK_BLOCK
+                && clicked == Material.END_PORTAL_FRAME
+                && item == Material.ENDER_EYE;
     }
 }

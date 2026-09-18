@@ -15,6 +15,12 @@ commands:
     permission: lowcore.command
     aliases: [lc]
 
+  lock-dimension:
+    description: Lock the Nether or End permanently or for a set duration
+    usage: /lock-dimension <nether|end> [duration|lock|unlock|status]
+    permission: lowcore.dimensions
+    aliases: [lockdimension, dimensionlock]
+
   fly:
     description: Toggles flight
     usage: /fly

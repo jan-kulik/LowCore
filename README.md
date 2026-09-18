@@ -24,6 +24,7 @@ and multiple clean, well-structured systems.
 - **MOTD System** — Two-line MOTD with placeholders
 - **Logout Tracking System** — Stores player logout positions using SQLite
 - **Dimension Locks** — Lock the Nether or End, including portal creation and travel
+- **Timed Dimension Locks** — Automatically unlock dimensions after durations such as `30m`, `2h`, or `1d12h`
 
 ---
 
@@ -33,6 +34,7 @@ and multiple clean, well-structured systems.
 |----------------|-----------------------------------|----------------------------------------|
 | `/lowcore`     | Plugin info, reload, debug tools  | `lowcore.command`                      |
 | `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
+| `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -53,6 +55,22 @@ and multiple clean, well-structured systems.
 | `/vanish`      | Vanish mode                       | `lowcore.vanish`                       |
 | `/lastlogout`  | Show last logout location         | `lowcore.lastlogout`                   |
 | `/sudo`        | Sudo someone to do something      | `lowcore.sudo` / `lowcore.sudo.op`     |
+
+---
+
+## 🌍 Dimension Locks
+
+```text
+/lock-dimension nether          # lock permanently
+/lock-dimension end 2h          # lock for two hours
+/lock-dimension end 1d12h       # combined durations are supported
+/lock-dimension end status      # show current state and remaining time
+/lock-dimension end unlock      # unlock immediately
+```
+
+Supported duration units are `s`, `m`, `h`, `d`, and `w`, up to 365 days. While
+the End is locked, Ender Eyes cannot be inserted into End Portal Frames. Players
+already inside a locked dimension can always leave it.
 
 ---
 

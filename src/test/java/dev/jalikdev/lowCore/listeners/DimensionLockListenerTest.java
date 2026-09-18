@@ -1,6 +1,8 @@
 package dev.jalikdev.lowCore.listeners;
 
 import org.bukkit.World;
+import org.bukkit.Material;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.world.PortalCreateEvent;
 import org.junit.jupiter.api.Test;
 
@@ -43,5 +45,15 @@ class DimensionLockListenerTest {
                 PortalCreateEvent.CreateReason.END_PLATFORM, true));
         assertFalse(DimensionLockListener.shouldBlockPortalCreation(
                 PortalCreateEvent.CreateReason.FIRE, false));
+    }
+
+    @Test
+    void preventsEnderEyesBeingInsertedWhileEndIsLocked() {
+        assertTrue(DimensionLockListener.shouldBlockEndFrameInteraction(
+                Action.RIGHT_CLICK_BLOCK, Material.END_PORTAL_FRAME, Material.ENDER_EYE, true));
+        assertFalse(DimensionLockListener.shouldBlockEndFrameInteraction(
+                Action.RIGHT_CLICK_BLOCK, Material.END_PORTAL_FRAME, Material.ENDER_EYE, false));
+        assertFalse(DimensionLockListener.shouldBlockEndFrameInteraction(
+                Action.RIGHT_CLICK_BLOCK, Material.STONE, Material.ENDER_EYE, true));
     }
 }
