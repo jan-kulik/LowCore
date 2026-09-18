@@ -231,6 +231,14 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
                 LowCore.sendMessage(sender, "&7Table &aoffline_inventories&7: &cerror");
             }
 
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) AS cnt FROM anti_freecam_logs")) {
+                if (rs.next()) {
+                    LowCore.sendMessage(sender, "&7Table &aanti_freecam_logs&7: &e" + rs.getInt("cnt") + " &7rows");
+                }
+            } catch (Exception e) {
+                LowCore.sendMessage(sender, "&7Table &aanti_freecam_logs&7: &cerror");
+            }
+
         } catch (Exception e) {
             LowCore.sendMessage(sender, "&cError while reading DB stats: &4" + e.getClass().getSimpleName());
         }
@@ -391,6 +399,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
         boolean perfMon = plugin.getConfig().getBoolean("performance-monitor.enabled", true);
         boolean lagCleanup = plugin.getConfig().getBoolean("lag-cleanup.enabled", true);
         boolean lastLogout = plugin.getConfig().getBoolean("lastlogout.enabled", true);
+        boolean antiFreecam = plugin.getConfig().getBoolean("anti-freecam.enabled", false);
 
         LowCore.sendMessage(sender, "&7=== LowCore System Status ===");
         LowCore.sendMessage(sender, "&7Join/Quit Messages: " + (jq ? "&aENABLED" : "&cDISABLED"));
@@ -400,6 +409,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&7Performance Monitor: " + (perfMon ? "&aENABLED" : "&cDISABLED"));
         LowCore.sendMessage(sender, "&7Lag Cleanup: " + (lagCleanup ? "&aENABLED" : "&cDISABLED"));
         LowCore.sendMessage(sender, "&7LastLogout: " + (lastLogout ? "&aENABLED" : "&cDISABLED"));
+        LowCore.sendMessage(sender, "&7Anti-Freecam: " + (antiFreecam ? "&aENABLED" : "&cDISABLED"));
         return true;
     }
 

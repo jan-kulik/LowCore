@@ -118,12 +118,20 @@ crystal-cooldown:
 anti-freecam:
   enabled: false
   punishment: "kick" # notify, kick or ban
-  join-delay-ticks: 60
+  # One tick starts the automatic check while the client is loading terrain.
+  join-delay-ticks: 1
+  loading-screen-migrated: true
   close-delay-ticks: 2
+  confirmation-delay-ticks: 2
   timeout-ticks: 40
   double-check: true
+  log-max-entries: 5000
+  # Fallback for proxy setups where the Geyser/Floodgate API is unavailable.
+  bedrock-name-prefixes:
+    - "."
+    - "*"
   messages:
-    usage: "&7Usage: &e/anti-freecam [gui|on|off|toggle|status|punishment <notify|kick|ban>|check <player>]"
+    usage: "&7Usage: &e/anti-freecam [gui|on|off|toggle|status|punishment <notify|kick|ban>|check <player>|logs]"
     enabled: "&aAnti-Freecam detection enabled. Joining players will be checked."
     disabled: "&eAnti-Freecam detection disabled."
     status: "&7Anti-Freecam: %status%&7, punishment: &e%punishment%&7."
@@ -133,6 +141,7 @@ anti-freecam:
     check-started: "&7Started a Freecam/Meteor check for &e%player%&7."
     already-running: "&e%player% &7is already being checked."
     bypassed: "&e%player% &7has the anti-freecam bypass permission."
+    bedrock-skipped: "&e%player% &7is connected through Geyser/Floodgate and was not checked."
     failed: "&cThe check for &e%player% &ccould not be started."
     confirming: "&e%player% &7matched &e%mods%&7. Running confirmation check..."
     clean: "&aNo Freecam or Meteor translation keys detected for &e%player%&a."

@@ -1,6 +1,8 @@
 package dev.jalikdev.lowCore.antifreecam;
 
 import dev.jalikdev.lowCore.LowCore;
+import dev.jalikdev.lowCore.database.AntiFreecamLogRepository;
+import dev.jalikdev.lowCore.database.AntiFreecamLogRepository.AntiFreecamLogEntry;
 import io.papermc.paper.event.packet.UncheckedSignChangeEvent;
 import io.papermc.paper.math.BlockPosition;
 import io.papermc.paper.math.Position;
@@ -46,10 +48,14 @@ public final class AntiFreecamManager implements Listener {
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final LowCore plugin;
+    private final AntiFreecamLogRepository logRepository;
+    private final BedrockPlayerDetector bedrockDetector;
     private final Map<UUID, ProbeSession> active = new HashMap<>();
 
-    public AntiFreecamManager(LowCore plugin) {
+    public AntiFreecamManager(LowCore plugin, AntiFreecamLogRepository logRepository) {
         this.plugin = plugin;
+        this.logRepository = logRepository;
+        this.bedrockDetector = new BedrockPlayerDetector(plugin);
     }
 
     public boolean isEnabled() {
@@ -77,6 +83,42 @@ public final class AntiFreecamManager implements Listener {
         return active.containsKey(playerId);
     }
 
+    public boolean isBedrockPlayer(UUID playerId) {
+        return bedrockDetector.isBedrockPlayer(playerId);
+    }
+
+    public boolean isBedrockPlayer(Player player) {
+        if (isBedrockPlayer(player.getUniqueId())) {
+            return true;
+        }
+        for (String configuredPrefix : plugin.getConfig()
+                .getStringList("anti-freecam.bedrock-name-prefixes")) {
+            String prefix = configuredPrefix.strip();
+            if (!prefix.isEmpty() && player.getName().startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public List<AntiFreecamLogEntry> getRecentLogs(int limit, int offset) {
+        try {
+            return logRepository.findRecent(limit, offset);
+        } catch (IllegalStateException exception) {
+            plugin.getLogger().warning(exception.getMessage());
+            return List.of();
+        }
+    }
+
+    public int getLogCount() {
+        try {
+            return logRepository.count();
+        } catch (IllegalStateException exception) {
+            plugin.getLogger().warning(exception.getMessage());
+            return 0;
+        }
+    }
+
     public StartResult startManualCheck(Player target, CommandSender initiator) {
         UUID initiatorId = initiator instanceof Player player ? player.getUniqueId() : null;
         return startCheck(target, initiatorId, true, Set.of());
@@ -88,6 +130,9 @@ public final class AntiFreecamManager implements Listener {
         }
         if (target.hasPermission("lowcore.antifreecam.bypass")) {
             return StartResult.BYPASSED;
+        }
+        if (isBedrockPlayer(target)) {
+            return StartResult.BEDROCK;
         }
         if (active.containsKey(target.getUniqueId())) {
             return StartResult.ALREADY_RUNNING;
@@ -133,13 +178,17 @@ public final class AntiFreecamManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        if (!isEnabled() || event.getPlayer().hasPermission("lowcore.antifreecam.bypass")) {
+        Player joiningPlayer = event.getPlayer();
+        if (!isEnabled() || joiningPlayer.hasPermission("lowcore.antifreecam.bypass")
+                || isBedrockPlayer(joiningPlayer)) {
             return;
         }
-        long delay = clamp(plugin.getConfig().getLong("anti-freecam.join-delay-ticks", 60L), 20L, 1200L);
+        // One tick keeps the probe inside the terrain-loading phase while still
+        // allowing the initial world packets to be queued first.
+        long delay = clamp(plugin.getConfig().getLong("anti-freecam.join-delay-ticks", 1L), 1L, 200L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Player player = event.getPlayer();
-            if (player.isOnline() && isEnabled()) {
+            if (player.isOnline() && isEnabled() && !isBedrockPlayer(player)) {
                 startCheck(player, null, false, Set.of());
             }
         }, delay);
@@ -168,13 +217,23 @@ public final class AntiFreecamManager implements Listener {
         logResult(event.getPlayer(), evaluation, lines);
 
         if (evaluation.protectedResponse()) {
+            saveLog(session, event.getPlayer(), "PROTECTED", Set.of(), "none",
+                    "Client filtered the control key response");
             notifyResult(session, "anti-freecam.protected", event.getPlayer(), "");
             return;
         }
 
         Set<String> detected = evaluation.detectedMods();
         if (detected.isEmpty()) {
-            if (session.manual) {
+            if (session.confirmation) {
+                saveLog(session, event.getPlayer(), "INCONCLUSIVE", session.firstDetections,
+                        "none", "First result did not repeat during confirmation");
+                notifyResult(session, "anti-freecam.inconclusive", event.getPlayer(), "");
+            } else {
+                saveLog(session, event.getPlayer(), "CLEAN", Set.of(), "none",
+                        "No configured translation keys matched");
+            }
+            if (session.manual && !session.confirmation) {
                 notifyResult(session, "anti-freecam.clean", event.getPlayer(), "");
             }
             return;
@@ -183,12 +242,14 @@ public final class AntiFreecamManager implements Listener {
         boolean doubleCheck = plugin.getConfig().getBoolean("anti-freecam.double-check", true);
         if (doubleCheck && !session.confirmation) {
             notifyInitiator(session, "anti-freecam.confirming", event.getPlayer(), joinMods(detected));
+            long confirmationDelay = clamp(
+                    plugin.getConfig().getLong("anti-freecam.confirmation-delay-ticks", 2L), 1L, 20L);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 Player target = Bukkit.getPlayer(session.playerId);
                 if (target != null && target.isOnline()) {
                     startCheck(target, session.initiatorId, session.manual, detected);
                 }
-            }, 10L);
+            }, confirmationDelay);
             return;
         }
 
@@ -197,6 +258,8 @@ public final class AntiFreecamManager implements Listener {
             confirmed.retainAll(session.firstDetections);
         }
         if (confirmed.isEmpty()) {
+            saveLog(session, event.getPlayer(), "INCONCLUSIVE", session.firstDetections,
+                    "none", "Detected mods differed between the first and confirmation probes");
             notifyResult(session, "anti-freecam.inconclusive", event.getPlayer(), "");
             return;
         }
@@ -224,17 +287,22 @@ public final class AntiFreecamManager implements Listener {
         Player player = Bukkit.getPlayer(session.playerId);
         if (player != null) {
             restoreClientBlock(player, session.location);
+            saveLog(session, player, session.confirmation ? "INCONCLUSIVE" : "TIMEOUT",
+                    session.firstDetections, "none", "The client did not return a sign response in time");
             if (session.manual) {
-                notifyResult(session, "anti-freecam.timeout", player, "");
+                notifyResult(session, session.confirmation
+                        ? "anti-freecam.inconclusive" : "anti-freecam.timeout", player, "");
             }
         }
     }
 
     private void handleDetection(Player target, ProbeSession session, Set<String> mods) {
         String modNames = joinMods(mods);
+        Punishment punishment = getPunishment();
+        saveLog(session, target, "DETECTED", mods, punishment.configName(),
+                "Match confirmed by translation-key probes");
         notifyResult(session, "anti-freecam.detected", target, modNames);
 
-        Punishment punishment = getPunishment();
         if (punishment == Punishment.NOTIFY) {
             return;
         }
@@ -286,6 +354,17 @@ public final class AntiFreecamManager implements Listener {
                 + ": detected=" + joinMods(evaluation.detectedMods())
                 + ", protected=" + evaluation.protectedResponse()
                 + ", responses=[" + String.join(" | ", safeLines) + "]");
+    }
+
+    private void saveLog(ProbeSession session, Player player, String result, Set<String> mods,
+                         String punishment, String details) {
+        try {
+            logRepository.save(player.getUniqueId(), player.getName(), result, joinMods(mods),
+                    session.manual ? "manual" : "automatic", punishment, details);
+            logRepository.trimTo(plugin.getConfig().getInt("anti-freecam.log-max-entries", 5000));
+        } catch (IllegalStateException exception) {
+            plugin.getLogger().warning(exception.getMessage());
+        }
     }
 
     private Location findProbeLocation(Player player) {
@@ -422,6 +501,7 @@ public final class AntiFreecamManager implements Listener {
         STARTED,
         ALREADY_RUNNING,
         BYPASSED,
+        BEDROCK,
         OFFLINE,
         FAILED
     }

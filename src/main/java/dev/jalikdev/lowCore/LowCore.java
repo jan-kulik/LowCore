@@ -7,6 +7,7 @@ import dev.jalikdev.lowCore.performance.PerformanceMonitor;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import dev.jalikdev.lowCore.listeners.JoinQuitListener;
 import dev.jalikdev.lowCore.listeners.DimensionLockListener;
@@ -15,12 +16,14 @@ import dev.jalikdev.lowCore.listeners.MotdListener;
 import dev.jalikdev.lowCore.world.WorldInventoryManager;
 
 import dev.jalikdev.lowCore.database.DatabaseManager;
+import dev.jalikdev.lowCore.database.AntiFreecamLogRepository;
 import dev.jalikdev.lowCore.database.LastLocationRepository;
 
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository;
 import dev.jalikdev.lowCore.listeners.OfflineInventoryListener;
 
 import java.sql.SQLException;
+import java.io.File;
 import java.util.Objects;
 
 public class LowCore extends JavaPlugin {
@@ -41,6 +44,7 @@ public class LowCore extends JavaPlugin {
 
     private DatabaseManager databaseManager;
     private LastLocationRepository lastLocationRepository;
+    private AntiFreecamLogRepository antiFreecamLogRepository;
 
     public static LowCore getInstance() {
         return instance;
@@ -52,6 +56,7 @@ public class LowCore extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        migrateConfig();
 
         loadPrefix();
 
@@ -71,7 +76,8 @@ public class LowCore extends JavaPlugin {
         lastLocationRepository = new LastLocationRepository(databaseManager);
         offlineInventoryRepository = new OfflineInventoryRepository(databaseManager);
         dimensionLockManager = new DimensionLockManager(this);
-        antiFreecamManager = new AntiFreecamManager(this);
+        antiFreecamLogRepository = new AntiFreecamLogRepository(databaseManager);
+        antiFreecamManager = new AntiFreecamManager(this, antiFreecamLogRepository);
 
         LowcoreCommand lowcoreCommand = new LowcoreCommand(this);
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
@@ -240,6 +246,20 @@ public class LowCore extends JavaPlugin {
         this.prefix = ChatColor.translateAlternateColorCodes('&', raw);
     }
 
+    private void migrateConfig() {
+        // 2.4.0 used a three-second delay. Move that untouched default into
+        // the early terrain-loading phase while preserving custom values.
+        File configFile = new File(getDataFolder(), "config.yml");
+        YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(configFile);
+        if (!diskConfig.getBoolean("anti-freecam.loading-screen-migrated", false)) {
+            if (diskConfig.getLong("anti-freecam.join-delay-ticks", 60L) == 60L) {
+                getConfig().set("anti-freecam.join-delay-ticks", 1L);
+            }
+            getConfig().set("anti-freecam.loading-screen-migrated", true);
+            saveConfig();
+        }
+    }
+
     public String getPrefix() {
         return prefix != null ? prefix : ChatColor.translateAlternateColorCodes('&', DEFAULT_PREFIX);
     }
@@ -351,5 +371,9 @@ public class LowCore extends JavaPlugin {
 
     public AntiFreecamManager getAntiFreecamManager() {
         return antiFreecamManager;
+    }
+
+    public AntiFreecamLogRepository getAntiFreecamLogRepository() {
+        return antiFreecamLogRepository;
     }
 }

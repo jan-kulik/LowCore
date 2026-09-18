@@ -3,6 +3,7 @@ version: '${project.version}'
 main: dev.jalikdev.lowCore.LowCore
 api-version: '26.2'
 author: 'jan'
+softdepend: [Geyser-Spigot, floodgate]
 
 # -------------------------------------------------
 # COMMANDS
@@ -29,7 +30,7 @@ commands:
 
   anti-freecam:
     description: Configure Freecam and Meteor client detection
-    usage: /anti-freecam [on|off|status|punishment|check]
+    usage: /anti-freecam [on|off|status|punishment|check|logs]
     permission: lowcore.antifreecam.admin
     aliases: [antifreecam, afc]
 

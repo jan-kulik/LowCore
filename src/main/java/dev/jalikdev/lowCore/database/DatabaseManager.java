@@ -58,6 +58,24 @@ public class DatabaseManager {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sqlOfflineInv);
         }
+
+        String sqlAntiFreecamLogs = "CREATE TABLE IF NOT EXISTS anti_freecam_logs (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "uuid TEXT NOT NULL," +
+                "name TEXT NOT NULL," +
+                "result TEXT NOT NULL," +
+                "mods TEXT," +
+                "source TEXT NOT NULL," +
+                "punishment TEXT NOT NULL," +
+                "details TEXT," +
+                "checked_at INTEGER NOT NULL" +
+                ");";
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(sqlAntiFreecamLogs);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_anti_freecam_logs_checked_at " +
+                    "ON anti_freecam_logs(checked_at DESC)");
+        }
     }
 
     public void close() {

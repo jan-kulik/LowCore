@@ -25,7 +25,7 @@ and multiple clean, well-structured systems.
 - **Logout Tracking System** — Stores player logout positions using SQLite
 - **Dimension Locks** — Lock the Nether or End, including portal creation and travel
 - **Timed Dimension Locks** — Automatically unlock dimensions after durations such as `30m`, `2h`, or `1d12h`
-- **Anti-Freecam** — Optional virtual-sign checks for Freecam and Meteor Client with confirmation and configurable punishment
+- **Anti-Freecam** — Loading-screen checks for Freecam and Meteor Client, Geyser-safe with persistent GUI logs
 - **Crystal Cooldown** — Configure a tick-accurate End Crystal placement delay per player
 
 ---
@@ -41,6 +41,7 @@ and multiple clean, well-structured systems.
 | `/anti-freecam [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antifreecam.admin` |
 | `/anti-freecam punishment <notify\|kick\|ban>` | Select the action after a confirmed match | `lowcore.antifreecam.admin` |
 | `/anti-freecam check <player>` | Manually check an online player | `lowcore.antifreecam.admin` |
+| `/anti-freecam logs` | Open the persistent detection log GUI | `lowcore.antifreecam.admin` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -102,11 +103,16 @@ default. It probes the Freecam keys `key.freecam.toggle` and
 `freecam.config.gui.title`, plus Meteor Client's
 `key.meteor-client.open-gui`, through Paper's virtual-sign API. Confirmed
 matches can notify staff, kick, or permanently ban. A second probe is enabled
-by default, and blocked or timed-out responses never cause punishment.
+by default, and blocked or timed-out responses never cause punishment. Automatic
+checks start during the terrain-loading screen so the probe does not interrupt
+normal gameplay.
 
 The check detects matching client translations, not whether Freecam was
 actively used. Players with `lowcore.antifreecam.bypass` are skipped; staff
-with `lowcore.antifreecam.alerts` receive results.
+with `lowcore.antifreecam.alerts` receive results. Players connected through
+Geyser or Floodgate are detected through their APIs and skipped completely.
+Results are stored in SQLite and can be viewed through the GUI or with
+`/anti-freecam logs`.
 
 ---
 
