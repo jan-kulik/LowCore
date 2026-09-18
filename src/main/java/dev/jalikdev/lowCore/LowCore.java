@@ -73,9 +73,10 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
         Objects.requireNonNull(getCommand("lowcore")).setTabCompleter(lowcoreCommand);
 
-        LockDimensionCommand lockDimensionCommand = new LockDimensionCommand(dimensionLockManager);
+        LockDimensionCommand lockDimensionCommand = new LockDimensionCommand(this, dimensionLockManager);
         Objects.requireNonNull(getCommand("lock-dimension")).setExecutor(lockDimensionCommand);
         Objects.requireNonNull(getCommand("lock-dimension")).setTabCompleter(lockDimensionCommand);
+        getServer().getPluginManager().registerEvents(lockDimensionCommand, this);
 
         InvseeCommand invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);

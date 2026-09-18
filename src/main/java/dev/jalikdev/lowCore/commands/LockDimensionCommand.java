@@ -4,25 +4,42 @@ import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import dev.jalikdev.lowCore.utils.DurationUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
-public class LockDimensionCommand implements CommandExecutor, TabCompleter {
+public class LockDimensionCommand implements CommandExecutor, TabCompleter, Listener {
 
     private static final List<String> DIMENSIONS = List.of("nether", "end");
     private static final List<String> ACTIONS = List.of("lock", "unlock", "status", "30m", "1h", "1d");
+    private static final int[] DURATION_SLOTS = {10, 11, 12, 13, 14, 15, 16};
 
+    private final LowCore plugin;
     private final DimensionLockManager lockManager;
 
-    public LockDimensionCommand(DimensionLockManager lockManager) {
+    public LockDimensionCommand(LowCore plugin, DimensionLockManager lockManager) {
+        this.plugin = plugin;
         this.lockManager = lockManager;
     }
 
@@ -34,7 +51,16 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (args.length < 1 || args.length > 2) {
+        if (args.length == 0) {
+            if (sender instanceof Player player) {
+                openMainGui(player);
+            } else {
+                LowCore.sendConfigMessage(sender, "dimensions.command-usage");
+            }
+            return true;
+        }
+
+        if (args.length > 2) {
             LowCore.sendConfigMessage(sender, "dimensions.command-usage");
             return true;
         }
@@ -75,6 +101,147 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private void openMainGui(Player player) {
+        DimensionGuiHolder holder = new DimensionGuiHolder(GuiPage.MAIN, null, 27, "§8Dimension Locks");
+        Inventory inventory = holder.getInventory();
+
+        fill(inventory);
+        inventory.setItem(11, dimensionItem(Dimension.NETHER));
+        inventory.setItem(15, dimensionItem(Dimension.END));
+        inventory.setItem(22, item(Material.BARRIER, "&cClose", "&7Close this menu."));
+        player.openInventory(inventory);
+    }
+
+    private void openSettingsGui(Player player, Dimension dimension) {
+        DimensionGuiHolder holder = new DimensionGuiHolder(
+                GuiPage.SETTINGS, dimension, 36, "§8Lock: §f" + dimension.displayName());
+        Inventory inventory = holder.getInventory();
+
+        fill(inventory);
+        inventory.setItem(4, dimensionItem(dimension));
+
+        List<String> configuredDurations = plugin.getConfig().getStringList("dimensions.gui.durations");
+        int buttonIndex = 0;
+        for (String configuredDuration : configuredDurations) {
+            if (buttonIndex >= DURATION_SLOTS.length) {
+                break;
+            }
+            try {
+                long duration = DurationUtil.parseMillis(configuredDuration);
+                int slot = DURATION_SLOTS[buttonIndex++];
+                holder.durationBySlot().put(slot, duration);
+                inventory.setItem(slot, item(Material.CLOCK, "&eLock for " + configuredDuration,
+                        "&7Automatically unlocks afterwards.", "", "&eClick to apply"));
+            } catch (IllegalArgumentException exception) {
+                plugin.getLogger().warning(
+                        "Ignoring invalid dimensions.gui.durations entry: " + configuredDuration);
+            }
+        }
+
+        inventory.setItem(20, item(Material.RED_CONCRETE, "&cPermanent lock",
+                "&7Locks the " + dimension.displayName() + " until manually unlocked.", "", "&cClick to lock"));
+        inventory.setItem(22, item(Material.ARROW, "&eBack", "&7Return to the dimension overview."));
+        inventory.setItem(24, item(Material.LIME_CONCRETE, "&aUnlock now",
+                "&7Immediately opens the " + dimension.displayName() + ".", "", "&aClick to unlock"));
+        player.openInventory(inventory);
+    }
+
+    private ItemStack dimensionItem(Dimension dimension) {
+        long remaining = lockManager.getRemainingMillis(dimension);
+        Material material = dimension == Dimension.NETHER ? Material.NETHERRACK : Material.END_STONE;
+        String color = dimension == Dimension.NETHER ? "&c" : "&d";
+        List<String> lore = new ArrayList<>();
+
+        if (remaining < 0L) {
+            lore.add("&7Status: &aUnlocked");
+        } else if (remaining == 0L) {
+            lore.add("&7Status: &cPermanently locked");
+        } else {
+            lore.add("&7Status: &cLocked");
+            lore.add("&7Remaining: &e" + DurationUtil.formatMillis(remaining));
+        }
+        lore.add("");
+        lore.add("&eClick to manage");
+        return item(material, color + dimension.displayName(), lore.toArray(String[]::new));
+    }
+
+    private ItemStack item(Material material, String name, String... lore) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(color(name));
+
+        List<String> coloredLore = new ArrayList<>();
+        for (String line : lore) {
+            coloredLore.add(color(line));
+        }
+        meta.setLore(coloredLore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void fill(Inventory inventory) {
+        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, filler);
+        }
+    }
+
+    private String color(String value) {
+        return ChatColor.translateAlternateColorCodes('&', value);
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof DimensionGuiHolder holder)) {
+            return;
+        }
+
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) {
+            return;
+        }
+
+        int slot = event.getSlot();
+        if (holder.page() == GuiPage.MAIN) {
+            if (slot == 11) {
+                openSettingsGui(player, Dimension.NETHER);
+            } else if (slot == 15) {
+                openSettingsGui(player, Dimension.END);
+            } else if (slot == 22) {
+                player.closeInventory();
+            }
+            return;
+        }
+
+        Dimension dimension = holder.dimension();
+        if (slot == 20) {
+            lockManager.lock(dimension, 0L);
+            LowCore.sendConfigMessage(player, "dimensions.locked-permanent",
+                    "dimension", dimension.displayName());
+            openSettingsGui(player, dimension);
+        } else if (slot == 22) {
+            openMainGui(player);
+        } else if (slot == 24) {
+            lockManager.unlock(dimension);
+            LowCore.sendConfigMessage(player, "dimensions.unlocked", "dimension", dimension.displayName());
+            openSettingsGui(player, dimension);
+        } else if (holder.durationBySlot().containsKey(slot)) {
+            long duration = holder.durationBySlot().get(slot);
+            lockManager.lock(dimension, duration);
+            LowCore.sendConfigMessage(player, "dimensions.locked-timed",
+                    "dimension", dimension.displayName(), "duration", DurationUtil.formatMillis(duration));
+            openSettingsGui(player, dimension);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof DimensionGuiHolder) {
+            event.setCancelled(true);
+        }
+    }
+
     private void sendStatus(CommandSender sender, Dimension dimension) {
         long remaining = lockManager.getRemainingMillis(dimension);
         if (remaining < 0L) {
@@ -108,5 +275,40 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter {
             }
         }
         return matches;
+    }
+
+    private enum GuiPage {
+        MAIN,
+        SETTINGS
+    }
+
+    private static final class DimensionGuiHolder implements InventoryHolder {
+        private final GuiPage page;
+        private final Dimension dimension;
+        private final Map<Integer, Long> durationBySlot = new HashMap<>();
+        private Inventory inventory;
+
+        private DimensionGuiHolder(GuiPage page, Dimension dimension, int size, String title) {
+            this.page = page;
+            this.dimension = dimension;
+            this.inventory = Bukkit.createInventory(this, size, title);
+        }
+
+        private GuiPage page() {
+            return page;
+        }
+
+        private Dimension dimension() {
+            return dimension;
+        }
+
+        private Map<Integer, Long> durationBySlot() {
+            return durationBySlot;
+        }
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
     }
 }

@@ -60,6 +60,10 @@ and multiple clean, well-structured systems.
 
 ## 🌍 Dimension Locks
 
+Players can run `/lock-dimension` without arguments to open the dimension lock
+GUI. The available timer buttons can be customized under
+`dimensions.gui.durations` in `config.yml`.
+
 ```text
 /lock-dimension nether          # lock permanently
 /lock-dimension end 2h          # lock for two hours
