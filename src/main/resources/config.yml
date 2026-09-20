@@ -156,6 +156,25 @@ anti-freecam:
     kick-reason: "&cDisallowed client modification detected: &e%mods%"
 
 # ======================
+# Secret Trial Chamber Drops
+# ======================
+# Items listed here are removed only from Trial Chamber loot tables.
+# The same materials can still be obtained normally everywhere else.
+trial-drops:
+  enabled: true
+  disabled-items:
+    - HEAVY_CORE
+  messages:
+    usage: "&7Usage: &e/trial-drops [on|off|status|enable <item>|disable <item>|toggle <item>]"
+    player-only: "&cOnly players can open the Trial Drops GUI."
+    enabled: "&aTrial Chamber drop filtering enabled."
+    disabled: "&eTrial Chamber drop filtering disabled."
+    status: "&7Trial Chamber drop filtering is %status%&7. Blocked items: &e%count%&7."
+    invalid-item: "&cUnknown or invalid item: &e%item%"
+    item-blocked: "&c%item% &7will no longer drop inside Trial Chambers."
+    item-allowed: "&a%item% &7can drop inside Trial Chambers again."
+
+# ======================
 # Base Command
 # ======================
 misc:

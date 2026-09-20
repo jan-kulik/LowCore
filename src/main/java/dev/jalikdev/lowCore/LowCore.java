@@ -1,6 +1,7 @@
 package dev.jalikdev.lowCore;
 
 import dev.jalikdev.lowCore.antifreecam.AntiFreecamManager;
+import dev.jalikdev.lowCore.trialdrops.TrialDropManager;
 import dev.jalikdev.lowCore.commands.*;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.performance.PerformanceMonitor;
@@ -99,6 +100,13 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("anti-freecam")).setTabCompleter(antiFreecamCommand);
         getServer().getPluginManager().registerEvents(antiFreecamCommand, this);
         getServer().getPluginManager().registerEvents(antiFreecamManager, this);
+
+        TrialDropManager trialDropManager = new TrialDropManager(this);
+        TrialDropsCommand trialDropsCommand = new TrialDropsCommand(trialDropManager);
+        Objects.requireNonNull(getCommand("trial-drops")).setExecutor(trialDropsCommand);
+        Objects.requireNonNull(getCommand("trial-drops")).setTabCompleter(trialDropsCommand);
+        getServer().getPluginManager().registerEvents(trialDropManager, this);
+        getServer().getPluginManager().registerEvents(trialDropsCommand, this);
 
         InvseeCommand invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);
