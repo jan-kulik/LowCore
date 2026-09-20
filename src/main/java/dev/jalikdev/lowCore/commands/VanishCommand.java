@@ -33,7 +33,7 @@ public class VanishCommand implements CommandExecutor, Listener {
     public void startActionbarTask() {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (vanished.isEmpty()) return;
-            String msg = colorize(getCfg("vanish.actionbar", "&aYou are currently vanished."));
+            String msg = colorize(getCfg("vanish.messages.actionbar", "&aYou are currently vanished."));
             BaseComponent[] comp = TextComponent.fromLegacyText(msg);
             for (UUID id : vanished) {
                 Player p = Bukkit.getPlayer(id);
@@ -49,14 +49,14 @@ public class VanishCommand implements CommandExecutor, Listener {
                              @NotNull String label, @NotNull String[] args) {
 
         if (!(sender instanceof Player)) {
-            LowCore.sendConfigMessage(sender, "messages.player-only");
+            LowCore.sendConfigMessage(sender, "player-only");
             return true;
         }
 
         Player player = (Player) sender;
 
         if (!player.hasPermission("lowcore.vanish")) {
-            LowCore.sendConfigMessage(player, "messages.no-permission");
+            LowCore.sendConfigMessage(player, "no-permission");
             return true;
         }
 
@@ -73,7 +73,7 @@ public class VanishCommand implements CommandExecutor, Listener {
                 player.setCanPickupItems(true);
             } catch (Throwable ignored) {}
 
-            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.disabled", "&eYou are now visible.")));
+            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.messages.disabled", "&eYou are now visible.")));
             Bukkit.broadcastMessage(replacePlayer(colorize(getCfg("vanish.messages.fake-join", "+ %player%")), player));
         } else {
             vanished.add(player.getUniqueId());
@@ -88,7 +88,7 @@ public class VanishCommand implements CommandExecutor, Listener {
                 player.setCanPickupItems(false);
             } catch (Throwable ignored) {}
 
-            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.enabled", "&aYou are now vanished.")));
+            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.messages.enabled", "&aYou are now vanished.")));
             Bukkit.broadcastMessage(replacePlayer(colorize(getCfg("vanish.messages.fake-quit", "- %player%")), player));
         }
 

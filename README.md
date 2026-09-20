@@ -2,7 +2,7 @@
 
 <p align="center">
   A lightweight, modular, and performance-focused Minecraft utility plugin  
-  by <a href="https://github.com/jalikdev">jalikdev</a>.
+  by <a href="https://github.com/jan-kulik">jan-kulik</a>.
 </p>
 
 ---
@@ -28,6 +28,7 @@ and multiple clean, well-structured systems.
 - **Anti-Mods** — Loading-screen checks for Freecam, Meteor, Wurst, LiquidBounce and ThunderHack, with per-client rules
 - **Crystal Cooldown** — Configure a tick-accurate End Crystal placement delay per player
 - **Control Center** — Configure all major LowCore systems from one `/lowcore` GUI
+- **Admin & Utility GUI** — Open inventories, Ender Chests, crafting and anvils from the control center
 - **Admin Audit Log** — Persistent, paginated history for commands and GUI setting changes
 
 ---
@@ -37,14 +38,14 @@ and multiple clean, well-structured systems.
 | Command        | Description                       | Permission                             |
 |----------------|-----------------------------------|----------------------------------------|
 | `/lowcore`     | Open the central settings GUI     | `lowcore.command`                      |
-| `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
 | `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
 | `/crystal-cooldown <ticks\|off\|status>` | Configure Crystal placement speed | `lowcore.crystal-cooldown` |
 | `/anti-mods [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antimods.admin` |
-| `/anti-mods punishment <notify\|kick\|ban>` | Select the action after a confirmed match | `lowcore.antimods.admin` |
+| `/anti-mods punishment <notify\|kick\|ban\|custom>` | Select the action after a confirmed match | `lowcore.antimods.admin` |
+| `/anti-mods command <set\|add\|list\|clear> [command]` | Configure custom console punishment commands | `lowcore.antimods.admin` |
 | `/anti-mods <allow\|block> <client>` | Configure each supported client separately | `lowcore.antimods.admin` |
 | `/anti-mods check <player>` | Manually check an online player | `lowcore.antimods.admin` |
-| `/anti-mods logs` | Open the persistent detection log GUI | `lowcore.antimods.admin` |
+| `/anti-mods logs [player]` | Open filtered persistent detection logs | `lowcore.antimods.admin` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -105,11 +106,12 @@ Run `/anti-mods` to open the settings GUI. The feature is disabled by default.
 It checks client translation/keybind resources for Freecam, Meteor Client,
 Wurst Client, LiquidBounce and ThunderHack through Paper's virtual-sign API.
 Each client can be allowed or blocked independently. Allowed matches are only
-logged; blocked matches use the selected notify, kick, or ban action. A second
+logged; blocked matches use the selected notify, kick, ban, or custom console-command action. A second
 probe is enabled by default, and protected, failed or timed-out responses never
 cause punishment. Automatic checks start during the terrain-loading screen and
 retry once if the client's initial packets swallow the first probe. The virtual
-sign is restored immediately and its editor is closed after one tick.
+sign is placed inside the best enclosed block available, restored immediately,
+and restored again over the following ticks to prevent a visible leftover sign.
 
 The check detects exposed client resources, not whether a cheat was actively
 used, and cannot detect every modified or disguised client. OP bypass can be
@@ -117,7 +119,8 @@ toggled, and a custom bypass permission can be entered with
 `/anti-mods bypass-permission <permission|off>`. Staff with
 `lowcore.antimods.alerts` receive results. Players connected through Geyser or
 Floodgate are skipped completely. Results are stored in SQLite; the GUI can
-limit retained pages and clear them.
+filter by result, client, or player, limit retained pages, and clear them.
+Manual checks have a configurable per-target cooldown.
 
 ## 🧾 Admin Audit Log
 

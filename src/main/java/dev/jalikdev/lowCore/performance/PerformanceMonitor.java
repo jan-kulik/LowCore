@@ -9,11 +9,11 @@ public class PerformanceMonitor {
 
     private final LowCore plugin;
 
-    private final boolean enabled;
-    private final double warnThreshold;
-    private final double severeThreshold;
-    private final long checkIntervalTicks;
-    private final long cooldownMillis;
+    private boolean enabled;
+    private double warnThreshold;
+    private double severeThreshold;
+    private long checkIntervalTicks;
+    private long cooldownMillis;
 
     private int taskId = -1;
     private long lastWarnMillis = 0L;
@@ -21,7 +21,10 @@ public class PerformanceMonitor {
 
     public PerformanceMonitor(LowCore plugin) {
         this.plugin = plugin;
+        loadSettings();
+    }
 
+    private void loadSettings() {
         this.enabled = plugin.getConfig().getBoolean("performance-monitor.enabled", true);
         this.warnThreshold = plugin.getConfig().getDouble("performance-monitor.warn-tps", 18.0);
         this.severeThreshold = plugin.getConfig().getDouble("performance-monitor.severe-tps", 15.0);
@@ -31,6 +34,12 @@ public class PerformanceMonitor {
 
         int cooldownSeconds = plugin.getConfig().getInt("performance-monitor.cooldown-seconds", 60);
         this.cooldownMillis = Math.max(1000L, cooldownSeconds * 1000L);
+    }
+
+    public void reload() {
+        stop();
+        loadSettings();
+        start();
     }
 
     public void start() {

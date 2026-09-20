@@ -15,6 +15,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.TileState;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.sign.Side;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -48,6 +50,7 @@ public final class AntiFreecamManager implements Listener {
     private final AntiFreecamLogRepository logRepository;
     private final BedrockPlayerDetector bedrockDetector;
     private final Map<UUID, ProbeSession> active = new HashMap<>();
+    private final Map<UUID, Long> lastManualCheckAt = new HashMap<>();
 
     public AntiFreecamManager(LowCore plugin, AntiFreecamLogRepository logRepository) {
         this.plugin = plugin;
@@ -71,6 +74,15 @@ public final class AntiFreecamManager implements Listener {
 
     public void setPunishment(Punishment punishment) {
         plugin.getConfig().set("anti-mods.punishment", punishment.configName());
+        plugin.saveConfig();
+    }
+
+    public List<String> getCustomCommands() {
+        return List.copyOf(plugin.getConfig().getStringList("anti-mods.custom-commands"));
+    }
+
+    public void setCustomCommands(List<String> commands) {
+        plugin.getConfig().set("anti-mods.custom-commands", commands);
         plugin.saveConfig();
     }
 
@@ -128,6 +140,27 @@ public final class AntiFreecamManager implements Listener {
         return 36;
     }
 
+    public int getManualCheckCooldownSeconds() {
+        return (int) clamp(plugin.getConfig().getLong("anti-mods.manual-check-cooldown-seconds", 10L), 0L, 3600L);
+    }
+
+    public void setManualCheckCooldownSeconds(int seconds) {
+        plugin.getConfig().set("anti-mods.manual-check-cooldown-seconds", (int) clamp(seconds, 0L, 3600L));
+        plugin.saveConfig();
+    }
+
+    public long getManualCooldownRemainingSeconds(UUID playerId) {
+        int cooldownSeconds = getManualCheckCooldownSeconds();
+        if (cooldownSeconds <= 0) return 0L;
+        long previous = lastManualCheckAt.getOrDefault(playerId, 0L);
+        long remainingMillis = previous + cooldownSeconds * 1000L - System.currentTimeMillis();
+        if (remainingMillis <= 0L) {
+            lastManualCheckAt.remove(playerId);
+            return 0L;
+        }
+        return (remainingMillis + 999L) / 1000L;
+    }
+
     public boolean isChecking(UUID playerId) {
         return active.containsKey(playerId);
     }
@@ -153,8 +186,13 @@ public final class AntiFreecamManager implements Listener {
     }
 
     public List<AntiFreecamLogEntry> getRecentLogs(int limit, int offset) {
+        return getRecentLogs(limit, offset, null, null, null);
+    }
+
+    public List<AntiFreecamLogEntry> getRecentLogs(int limit, int offset, String result,
+                                                    String client, String player) {
         try {
-            return logRepository.findRecent(limit, offset);
+            return logRepository.findRecent(limit, offset, result, client, player);
         } catch (IllegalStateException exception) {
             plugin.getLogger().warning(exception.getMessage());
             return List.of();
@@ -162,8 +200,12 @@ public final class AntiFreecamManager implements Listener {
     }
 
     public int getLogCount() {
+        return getLogCount(null, null, null);
+    }
+
+    public int getLogCount(String result, String client, String player) {
         try {
-            return logRepository.count();
+            return logRepository.count(result, client, player);
         } catch (IllegalStateException exception) {
             plugin.getLogger().warning(exception.getMessage());
             return 0;
@@ -184,8 +226,15 @@ public final class AntiFreecamManager implements Listener {
     }
 
     public StartResult startManualCheck(Player target, CommandSender initiator) {
+        if (!target.isOnline()) return StartResult.OFFLINE;
+        if (isBypassed(target)) return StartResult.BYPASSED;
+        if (isBedrockPlayer(target)) return StartResult.BEDROCK;
+        if (active.containsKey(target.getUniqueId())) return StartResult.ALREADY_RUNNING;
+        if (getManualCooldownRemainingSeconds(target.getUniqueId()) > 0L) return StartResult.COOLDOWN;
         UUID initiatorId = initiator instanceof Player player ? player.getUniqueId() : null;
-        return startProbe(target, initiatorId, true, false, Set.of(), Set.of(), 0, 0);
+        StartResult result = startProbe(target, initiatorId, true, false, Set.of(), Set.of(), 0, 0);
+        if (result == StartResult.STARTED) lastManualCheckAt.put(target.getUniqueId(), System.currentTimeMillis());
+        return result;
     }
 
     private StartResult startProbe(Player target, UUID initiatorId, boolean manual, boolean confirmation,
@@ -227,6 +276,7 @@ public final class AntiFreecamManager implements Listener {
             target.sendSignChange(signLocation, lines);
             target.openVirtualSign(Position.block(signLocation), Side.FRONT);
             restoreClientBlock(target, signLocation);
+            scheduleRepeatedRestore(target, signLocation);
         } catch (RuntimeException exception) {
             active.remove(target.getUniqueId());
             restoreClientBlock(target, signLocation);
@@ -377,9 +427,31 @@ public final class AntiFreecamManager implements Listener {
 
         String blockedNames = joinClients(blocked);
         Punishment punishment = getPunishment();
-        saveLog(session, target, "DETECTED", detected, punishment.configName(), "Blocked clients: " + blockedNames);
+        String details = "Blocked clients: " + blockedNames;
+        if (punishment == Punishment.CUSTOM) {
+            details += "; custom commands: " + getCustomCommands().size();
+        }
+        saveLog(session, target, "DETECTED", detected, punishment.configName(), details);
         notifyResult(session, "anti-mods.detected", target, blockedNames);
         if (punishment == Punishment.NOTIFY) return;
+
+        if (punishment == Punishment.CUSTOM) {
+            List<String> commands = getCustomCommands();
+            if (commands.isEmpty()) {
+                plugin.getLogger().warning("Anti-Mod custom punishment is selected but no commands are configured.");
+                return;
+            }
+            for (String configured : commands) {
+                String rendered = configured
+                        .replace("%player%", target.getName())
+                        .replace("%uuid%", target.getUniqueId().toString())
+                        .replace("%mods%", blockedNames)
+                        .strip();
+                if (rendered.startsWith("/")) rendered = rendered.substring(1);
+                if (!rendered.isBlank()) Bukkit.dispatchCommand(Bukkit.getConsoleSender(), rendered);
+            }
+            return;
+        }
 
         String reason = color(plugin.getConfig().getString("anti-mods.messages.kick-reason",
                 "&cDisallowed client modification detected: &e%mods%")).replace("%mods%", blockedNames);
@@ -439,9 +511,51 @@ public final class AntiFreecamManager implements Listener {
     }
 
     private Location findProbeLocation(Player player) {
-        Location base = player.getLocation().getBlock().getLocation();
-        int y = Math.max(player.getWorld().getMinHeight() + 1, base.getBlockY() - 4);
-        return new Location(player.getWorld(), base.getBlockX(), y, base.getBlockZ());
+        Block base = player.getLocation().getBlock();
+        int minimum = player.getWorld().getMinHeight() + 1;
+        int[][] offsets = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        Block best = null;
+        int bestScore = -1;
+        for (int depth = 3; depth <= 16; depth++) {
+            int y = base.getY() - depth;
+            if (y <= minimum) break;
+            for (int[] offset : offsets) {
+                Block candidate = player.getWorld().getBlockAt(base.getX() + offset[0], y, base.getZ() + offset[1]);
+                if (isFullyHidden(candidate)) return candidate.getLocation();
+                int score = hiddenScore(candidate);
+                if (score > bestScore) {
+                    best = candidate;
+                    bestScore = score;
+                }
+            }
+        }
+        if (best != null && bestScore >= 0) return best.getLocation();
+        int y = Math.max(minimum, base.getY() - 8);
+        return new Location(player.getWorld(), base.getX(), y, base.getZ());
+    }
+
+    private boolean isFullyHidden(Block block) {
+        return hiddenScore(block) == 6;
+    }
+
+    private int hiddenScore(Block block) {
+        if (!block.getType().isOccluding() || block.getState() instanceof TileState) return -1;
+        int score = 0;
+        for (BlockFace face : List.of(BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH,
+                BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)) {
+            if (block.getRelative(face).getType().isOccluding()) score++;
+        }
+        return score;
+    }
+
+    private void scheduleRepeatedRestore(Player player, Location location) {
+        UUID playerId = player.getUniqueId();
+        for (long delay : new long[]{1L, 2L, 5L}) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                Player current = Bukkit.getPlayer(playerId);
+                if (current != null) restoreClientBlock(current, location);
+            }, delay);
+        }
     }
 
     private void restoreClientBlock(Player player, Location location) {
@@ -515,7 +629,8 @@ public final class AntiFreecamManager implements Listener {
     }
 
     public enum Punishment {
-        NOTIFY("notify", "Notify only"), KICK("kick", "Kick"), BAN("ban", "Ban");
+        NOTIFY("notify", "Notify only"), KICK("kick", "Kick"), BAN("ban", "Ban"),
+        CUSTOM("custom", "Custom command");
         private final String configName;
         private final String displayName;
         Punishment(String configName, String displayName) {
@@ -535,7 +650,7 @@ public final class AntiFreecamManager implements Listener {
         }
     }
 
-    public enum StartResult { STARTED, ALREADY_RUNNING, BYPASSED, BEDROCK, OFFLINE, FAILED }
+    public enum StartResult { STARTED, ALREADY_RUNNING, BYPASSED, BEDROCK, COOLDOWN, OFFLINE, FAILED }
 
     public record ProbeEvaluation(Set<AntiModClient> detectedClients, boolean protectedResponse) {}
 

@@ -40,18 +40,26 @@ public final class AntiFreecamLogRepository {
     }
 
     public List<AntiFreecamLogEntry> findRecent(int limit, int offset) {
+        return findRecent(limit, offset, null, null, null);
+    }
+
+    public List<AntiFreecamLogEntry> findRecent(int limit, int offset, String resultFilter,
+                                                 String clientFilter, String playerFilter) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
         int safeOffset = Math.max(0, offset);
         List<AntiFreecamLogEntry> entries = new ArrayList<>();
+        FilterQuery filter = filterQuery(resultFilter, clientFilter, playerFilter);
         String sql = """
                 SELECT id, uuid, name, result, mods, source, punishment, details, checked_at
                 FROM anti_freecam_logs
+                """ + filter.whereClause() + """
                 ORDER BY checked_at DESC, id DESC
                 LIMIT ? OFFSET ?
                 """;
         try (PreparedStatement statement = connection().prepareStatement(sql)) {
-            statement.setInt(1, safeLimit);
-            statement.setInt(2, safeOffset);
+            int parameter = bindFilters(statement, filter.values());
+            statement.setInt(parameter++, safeLimit);
+            statement.setInt(parameter, safeOffset);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
                     entries.add(new AntiFreecamLogEntry(
@@ -74,12 +82,45 @@ public final class AntiFreecamLogRepository {
     }
 
     public int count() {
-        try (Statement statement = connection().createStatement();
-             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM anti_freecam_logs")) {
-            return resultSet.next() ? resultSet.getInt(1) : 0;
+        return count(null, null, null);
+    }
+
+    public int count(String resultFilter, String clientFilter, String playerFilter) {
+        FilterQuery filter = filterQuery(resultFilter, clientFilter, playerFilter);
+        String sql = "SELECT COUNT(*) FROM anti_freecam_logs" + filter.whereClause();
+        try (PreparedStatement statement = connection().prepareStatement(sql)) {
+            bindFilters(statement, filter.values());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            }
         } catch (SQLException exception) {
             throw new IllegalStateException("Could not count anti-freecam logs", exception);
         }
+    }
+
+    private FilterQuery filterQuery(String resultFilter, String clientFilter, String playerFilter) {
+        List<String> conditions = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        if (resultFilter != null && !resultFilter.isBlank()) {
+            conditions.add("UPPER(result) = UPPER(?)");
+            values.add(resultFilter.strip());
+        }
+        if (clientFilter != null && !clientFilter.isBlank()) {
+            conditions.add("LOWER(mods) LIKE LOWER(?)");
+            values.add("%" + clientFilter.strip() + "%");
+        }
+        if (playerFilter != null && !playerFilter.isBlank()) {
+            conditions.add("LOWER(name) = LOWER(?)");
+            values.add(playerFilter.strip());
+        }
+        String where = conditions.isEmpty() ? "\n" : " WHERE " + String.join(" AND ", conditions) + "\n";
+        return new FilterQuery(where, values);
+    }
+
+    private int bindFilters(PreparedStatement statement, List<String> values) throws SQLException {
+        int parameter = 1;
+        for (String value : values) statement.setString(parameter++, value);
+        return parameter;
     }
 
     public int clear() {
@@ -119,5 +160,8 @@ public final class AntiFreecamLogRepository {
     public record AntiFreecamLogEntry(long id, UUID playerId, String playerName,
                                       String result, String mods, String source,
                                       String punishment, String details, long checkedAt) {
+    }
+
+    private record FilterQuery(String whereClause, List<String> values) {
     }
 }

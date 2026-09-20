@@ -27,7 +27,7 @@ public class FeedCommand implements CommandExecutor, TabCompleter {
         }
 
         if (!sender.hasPermission("lowcore.feed")) {
-            LowCore.sendMessage(sender, "no-permission");
+            LowCore.sendConfigMessage(sender, "no-permission");
             return true;
         }
 
@@ -41,12 +41,12 @@ public class FeedCommand implements CommandExecutor, TabCompleter {
             }
             Player t  = Bukkit.getPlayerExact(args[0]);
             if (t == null) {
-                LowCore.sendMessage(sender, "unknown-player");
+                LowCore.sendConfigMessage(sender, "unknown-player");
                 return true;
             }
             target = t;
         } else if (args.length > 1) {
-            LowCore.sendMessage(sender, "Usage: /lowcore feed [player]");
+            LowCore.sendMessage(sender, "&cUsage: &e/feed [player]");
             return true;
         }
 

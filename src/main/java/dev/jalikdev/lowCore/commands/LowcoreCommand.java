@@ -16,6 +16,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import org.jetbrains.annotations.NotNull;
@@ -26,13 +27,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
     private final LowCore plugin;
-    private final List<String> mainSubcommands = Arrays.asList("gui", "help", "info", "reload", "dimension");
-    private final List<String> dimensions = Arrays.asList("nether", "end");
-    private final List<String> dimensionActions = Arrays.asList("lock", "unlock", "status");
+    private final List<String> mainSubcommands = Arrays.asList("gui", "help", "info", "reload");
     private final List<String> helpTopics = Arrays.asList(
             "lowcore", "ec", "enchant", "feed", "fly", "gm", "hat", "heal", "invsee", "spawnmob"
     );
@@ -89,11 +89,6 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
-        if (sub.equals("dimension") || sub.equals("dimensions")) {
-            handleDimensionCommand(sender, args);
-            return true;
-        }
-
         sendMainHelp(sender);
         return true;
     }
@@ -105,7 +100,6 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         LowCore.sendMessage(sender, "&a/lowcore help &7- Show this help.");
         LowCore.sendMessage(sender, "&a/lowcore info &7- Plugin information.");
         LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config.");
-        LowCore.sendMessage(sender, "&a/lowcore dimension &7- Lock or unlock the Nether and End.");
         LowCore.sendMessage(sender, "&a/lock-dimension <nether|end> [time] &7- Permanent or timed dimension lock.");
         LowCore.sendMessage(sender, "&a/crystal-cooldown <ticks|off|status> &7- Set the Crystal placement delay.");
         LowCore.sendMessage(sender, "&a/anti-mods &7- Configure client-mod detection.");
@@ -138,7 +132,6 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
                 LowCore.sendMessage(sender, "&a/lowcore help <command> &7- Detailed help for one command.");
                 LowCore.sendMessage(sender, "&a/lowcore info &7- Show plugin information.");
                 LowCore.sendMessage(sender, "&a/lowcore reload &7- Reload the config (requires &flowcore.reload&7).");
-                LowCore.sendMessage(sender, "&a/lowcore dimension <nether|end> <lock|unlock|status> &7- Manage dimension access.");
                 break;
 
             case "ec":
@@ -251,17 +244,26 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         inventory.setItem(12, item(Material.END_CRYSTAL, "&dCrystal Cooldown",
                 "&7Current: &e" + crystalTicks + " ticks", "", "&eClick to configure"));
         inventory.setItem(14, item(Material.SHIELD, "&bAnti-Mods",
-                "&7Client detection, rules, bypass and logs.", "", "&eClick to manage"));
+                "&7Status: " + (plugin.getConfig().getBoolean("anti-mods.enabled", false) ? "&aEnabled" : "&cDisabled"),
+                "&7Punishment: &e" + plugin.getConfig().getString("anti-mods.punishment", "kick"),
+                "", "&eClick to manage"));
         inventory.setItem(16, item(Material.HEAVY_CORE, "&6Trial Chamber Drops",
+                "&7Status: " + (plugin.getConfig().getBoolean("trial-drops.enabled", true) ? "&aEnabled" : "&cDisabled"),
                 "&7Blocked items: &e" + plugin.getConfig().getStringList("trial-drops.disabled-items").size(),
                 "", "&eClick to manage"));
         inventory.setItem(28, item(Material.CLOCK, "&aPerformance",
-                "&7Show TPS, MSPT, memory and chunks.", "", "&eClick to view"));
+                "&7Monitor: " + (plugin.getConfig().getBoolean("performance-monitor.enabled", true) ? "&aEnabled" : "&cDisabled"),
+                "&7View metrics and configure monitoring.", "", "&eClick to manage"));
         inventory.setItem(30, item(Material.LAVA_BUCKET, "&cLag Cleanup",
+                "&7Status: " + (plugin.getConfig().getBoolean("lag-cleanup.enabled", true) ? "&aEnabled" : "&cDisabled"),
                 "&7Open entity cleanup controls.", "", "&eClick to manage"));
         inventory.setItem(32, item(Material.WRITABLE_BOOK, "&eAdmin Audit Log",
                 "&7Commands and settings changes.", "", "&eClick to view"));
-        inventory.setItem(34, item(Material.COMMAND_BLOCK, "&fReload Configuration",
+        inventory.setItem(34, item(Material.COMPARATOR, "&fGeneral Settings",
+                "&7Messages, MOTD and system toggles.", "", "&eClick to manage"));
+        inventory.setItem(46, item(Material.CHEST, "&bAdmin & Utility GUIs",
+                "&7Inventories, Ender Chests, crafting and anvil.", "", "&eClick to open"));
+        inventory.setItem(48, item(Material.COMMAND_BLOCK, "&fReload Configuration",
                 "&7Reload LowCore's config from disk.", "", "&eClick to reload"));
         inventory.setItem(49, item(Material.BARRIER, "&cClose", "&7Close the control center."));
         player.openInventory(inventory);
@@ -286,6 +288,83 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         player.openInventory(inventory);
     }
 
+    private void openGeneralGui(Player player) {
+        CoreGuiHolder holder = new CoreGuiHolder(CorePage.GENERAL, "§8LowCore General Settings");
+        Inventory inventory = holder.inventory;
+        fill(inventory);
+        toggle(inventory, 10, Material.NAME_TAG, "Join/Quit messages", "join-quit-messages.enabled");
+        toggle(inventory, 12, Material.OAK_SIGN, "Server list MOTD", "motd.enabled");
+        toggle(inventory, 14, Material.ENDER_EYE, "Update checker", "update-checker.enabled");
+        toggle(inventory, 16, Material.COMPASS, "Last logout command", "lastlogout.enabled");
+        toggle(inventory, 28, Material.CLOCK, "Performance command", "performance.enabled");
+        toggle(inventory, 30, Material.REDSTONE_TORCH, "Performance monitor", "performance-monitor.enabled");
+        toggle(inventory, 32, Material.LAVA_BUCKET, "Lag cleanup", "lag-cleanup.enabled");
+        toggle(inventory, 34, Material.SHIELD, "Cleanup confirmation", "lag-cleanup.confirm-required");
+        inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to the control center."));
+        player.openInventory(inventory);
+    }
+
+    private void openPerformanceGui(Player player) {
+        CoreGuiHolder holder = new CoreGuiHolder(CorePage.PERFORMANCE, "§8Performance Dashboard");
+        Inventory inventory = holder.inventory;
+        fill(inventory);
+        double[] tps = Bukkit.getServer().getTPS();
+        double currentTps = tps.length == 0 ? 20.0 : Math.min(20.0, tps[0]);
+        double mspt = Bukkit.getServer().getAverageTickTime();
+        Runtime runtime = Runtime.getRuntime();
+        long used = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maximum = runtime.maxMemory() / (1024 * 1024);
+        int chunks = Bukkit.getWorlds().stream().mapToInt(world -> world.getLoadedChunks().length).sum();
+        inventory.setItem(10, item(Material.CLOCK, "&aTPS: &f" + String.format(java.util.Locale.ROOT, "%.2f", currentTps),
+                "&7MSPT: &f" + String.format(java.util.Locale.ROOT, "%.2f", mspt)));
+        inventory.setItem(12, item(Material.REDSTONE, "&cMemory",
+                "&7Used: &e" + used + " MB", "&7Maximum: &e" + maximum + " MB"));
+        inventory.setItem(14, item(Material.PLAYER_HEAD, "&bPlayers: &f" + Bukkit.getOnlinePlayers().size(),
+                "&7Maximum: &e" + Bukkit.getMaxPlayers()));
+        inventory.setItem(16, item(Material.MAP, "&eLoaded chunks: &f" + chunks));
+        inventory.setItem(20, item(Material.YELLOW_DYE, "&eWarning TPS: &f"
+                        + plugin.getConfig().getDouble("performance-monitor.warn-tps", 18.0),
+                "&7Click to cycle 19 / 18 / 17 / 16."));
+        inventory.setItem(24, item(Material.RED_DYE, "&cSevere TPS: &f"
+                        + plugin.getConfig().getDouble("performance-monitor.severe-tps", 15.0),
+                "&7Click to cycle 17 / 15 / 12 / 10."));
+        toggle(inventory, 28, Material.COMPARATOR, "Performance command", "performance.enabled");
+        toggle(inventory, 30, Material.REDSTONE_TORCH, "Performance monitor", "performance-monitor.enabled");
+        toggle(inventory, 32, Material.REPEATER, "Show MSPT", "performance.show-mspt");
+        toggle(inventory, 34, Material.MAP, "Show chunks", "performance.show-chunks");
+        inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to the control center."));
+        player.openInventory(inventory);
+    }
+
+    private void openUtilitiesGui(Player player) {
+        CoreGuiHolder holder = new CoreGuiHolder(CorePage.UTILITIES, "§8Admin & Utility GUIs");
+        Inventory inventory = holder.inventory;
+        fill(inventory);
+        inventory.setItem(10, item(Material.ENDER_CHEST, "&dYour Ender Chest", "&7Open your Ender Chest."));
+        inventory.setItem(12, item(Material.CRAFTING_TABLE, "&6Crafting Table", "&7Open a virtual crafting table."));
+        inventory.setItem(14, item(Material.ANVIL, "&fAnvil", "&7Open a virtual anvil."));
+        inventory.setItem(16, item(Material.CHEST, "&bPlayer Inventory", "&7Select an online player's inventory."));
+        inventory.setItem(30, item(Material.ENDER_EYE, "&5Player Ender Chest", "&7Select an online player's Ender Chest."));
+        inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to the control center."));
+        player.openInventory(inventory);
+    }
+
+    private void openPlayerSelector(Player player, CorePage page) {
+        String title = page == CorePage.INVSEE_PLAYERS ? "§8Select Inventory" : "§8Select Ender Chest";
+        CoreGuiHolder holder = new CoreGuiHolder(page, title);
+        fill(holder.inventory);
+        int slot = 0;
+        for (Player target : Bukkit.getOnlinePlayers().stream()
+                .filter(target -> page != CorePage.INVSEE_PLAYERS || !target.getUniqueId().equals(player.getUniqueId()))
+                .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName())).toList()) {
+            if (slot >= 45) break;
+            holder.playersBySlot.put(slot, target.getUniqueId());
+            holder.inventory.setItem(slot++, playerHead(target));
+        }
+        holder.inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to utilities."));
+        player.openInventory(holder.inventory);
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         Inventory top = event.getView().getTopInventory();
@@ -302,18 +381,76 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
 
+        if (holder.page == CorePage.GENERAL) {
+            switch (slot) {
+                case 10 -> toggleSetting(player, "join-quit-messages.enabled", "Join/Quit messages");
+                case 12 -> toggleSetting(player, "motd.enabled", "MOTD");
+                case 14 -> toggleSetting(player, "update-checker.enabled", "Update checker");
+                case 16 -> toggleSetting(player, "lastlogout.enabled", "Last logout command");
+                case 28 -> toggleSetting(player, "performance.enabled", "Performance command");
+                case 30 -> togglePerformanceSetting(player, "performance-monitor.enabled", "Performance monitor");
+                case 32 -> toggleSetting(player, "lag-cleanup.enabled", "Lag cleanup");
+                case 34 -> toggleSetting(player, "lag-cleanup.confirm-required", "Cleanup confirmation");
+                case 49 -> openMainGui(player);
+                default -> { return; }
+            }
+            if (slot != 49) openGeneralGui(player);
+            return;
+        }
+
+        if (holder.page == CorePage.PERFORMANCE) {
+            switch (slot) {
+                case 20 -> cyclePerformanceThreshold(player, "performance-monitor.warn-tps",
+                        new double[]{19.0, 18.0, 17.0, 16.0}, "warning TPS");
+                case 24 -> cyclePerformanceThreshold(player, "performance-monitor.severe-tps",
+                        new double[]{17.0, 15.0, 12.0, 10.0}, "severe TPS");
+                case 28 -> toggleSetting(player, "performance.enabled", "Performance command");
+                case 30 -> togglePerformanceSetting(player, "performance-monitor.enabled", "Performance monitor");
+                case 32 -> toggleSetting(player, "performance.show-mspt", "Performance MSPT display");
+                case 34 -> toggleSetting(player, "performance.show-chunks", "Performance chunk display");
+                case 49 -> openMainGui(player);
+                default -> { return; }
+            }
+            if (slot != 49) openPerformanceGui(player);
+            return;
+        }
+
+        if (holder.page == CorePage.UTILITIES) {
+            switch (slot) {
+                case 10 -> player.performCommand("ec");
+                case 12 -> player.performCommand("craft");
+                case 14 -> player.performCommand("anvil");
+                case 16 -> openPlayerSelector(player, CorePage.INVSEE_PLAYERS);
+                case 30 -> openPlayerSelector(player, CorePage.EC_PLAYERS);
+                case 49 -> openMainGui(player);
+                default -> { }
+            }
+            return;
+        }
+
+        if (holder.page == CorePage.INVSEE_PLAYERS || holder.page == CorePage.EC_PLAYERS) {
+            if (slot == 49) {
+                openUtilitiesGui(player);
+                return;
+            }
+            UUID targetId = holder.playersBySlot.get(slot);
+            Player target = targetId == null ? null : Bukkit.getPlayer(targetId);
+            if (target != null) player.performCommand((holder.page == CorePage.INVSEE_PLAYERS ? "invsee " : "ec ")
+                    + target.getName());
+            return;
+        }
+
         switch (slot) {
             case 10 -> player.performCommand("lock-dimension");
             case 12 -> openCrystalGui(player);
             case 14 -> player.performCommand("anti-mods");
             case 16 -> player.performCommand("trial-drops");
-            case 28 -> {
-                player.closeInventory();
-                player.performCommand("performance");
-            }
+            case 28 -> openPerformanceGui(player);
             case 30 -> player.performCommand("cleanup");
             case 32 -> player.performCommand("log");
-            case 34 -> {
+            case 34 -> openGeneralGui(player);
+            case 46 -> openUtilitiesGui(player);
+            case 48 -> {
                 player.closeInventory();
                 player.performCommand("lowcore reload");
             }
@@ -329,6 +466,49 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
     private String formatSeconds(int ticks) {
         return ticks % 20 == 0 ? Integer.toString(ticks / 20) : String.format(java.util.Locale.ROOT, "%.2f", ticks / 20.0);
+    }
+
+    private void toggle(Inventory inventory, int slot, Material material, String title, String path) {
+        boolean enabled = plugin.getConfig().getBoolean(path, true);
+        inventory.setItem(slot, item(material, (enabled ? "&a" : "&c") + title,
+                "&7Status: " + (enabled ? "&aEnabled" : "&cDisabled"), "", "&eClick to toggle"));
+    }
+
+    private void toggleSetting(Player player, String path, String description) {
+        boolean enabled = !plugin.getConfig().getBoolean(path, true);
+        plugin.getConfig().set(path, enabled);
+        plugin.saveConfig();
+        if (path.equals("update-checker.enabled") && enabled) plugin.checkForUpdatesNow();
+        plugin.audit(player, "Set " + description + " to " + enabled);
+    }
+
+    private void togglePerformanceSetting(Player player, String path, String description) {
+        toggleSetting(player, path, description);
+        plugin.reloadPerformanceMonitor();
+    }
+
+    private void cyclePerformanceThreshold(Player player, String path, double[] values, String description) {
+        double current = plugin.getConfig().getDouble(path, values[0]);
+        double next = values[0];
+        for (int index = 0; index < values.length; index++) {
+            if (Double.compare(values[index], current) == 0) {
+                next = values[(index + 1) % values.length];
+                break;
+            }
+        }
+        plugin.getConfig().set(path, next);
+        plugin.saveConfig();
+        plugin.reloadPerformanceMonitor();
+        plugin.audit(player, "Set performance " + description + " to " + next);
+    }
+
+    private ItemStack playerHead(Player player) {
+        ItemStack result = item(Material.PLAYER_HEAD, "&e" + player.getName(), "&7Click to select." );
+        if (result.getItemMeta() instanceof SkullMeta meta) {
+            meta.setOwningPlayer(player);
+            result.setItemMeta(meta);
+        }
+        return result;
     }
 
     private ItemStack item(Material material, String name, String... lore) {
@@ -375,55 +555,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
             return result;
         }
 
-        if (args.length == 2 && isDimensionSubcommand(args[0])) {
-            return matching(dimensions, args[1]);
-        }
-
-        if (args.length == 3 && isDimensionSubcommand(args[0])) {
-            return matching(dimensionActions, args[2]);
-        }
-
         return result;
-    }
-
-    private void handleDimensionCommand(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("lowcore.dimensions")) {
-            LowCore.sendConfigMessage(sender, "no-permission");
-            return;
-        }
-
-        if (args.length != 3 || !dimensions.contains(args[1].toLowerCase())
-                || !dimensionActions.contains(args[2].toLowerCase())) {
-            LowCore.sendConfigMessage(sender, "dimensions.usage");
-            return;
-        }
-
-        String dimension = args[1].toLowerCase();
-        String action = args[2].toLowerCase();
-        Dimension selected = Dimension.fromInput(dimension).orElseThrow();
-
-        if (action.equals("status")) {
-            sendDimensionStatus(sender, dimension, plugin.getDimensionLockManager().isLocked(selected), "dimensions.status");
-            return;
-        }
-
-        boolean locked = action.equals("lock");
-        if (locked) {
-            plugin.getDimensionLockManager().lock(selected, 0L);
-        } else {
-            plugin.getDimensionLockManager().unlock(selected);
-        }
-        sendDimensionStatus(sender, dimension, locked, "dimensions.updated");
-    }
-
-    private void sendDimensionStatus(CommandSender sender, String dimension, boolean locked, String messageKey) {
-        LowCore.sendConfigMessage(sender, messageKey,
-                "dimension", dimension.equals("nether") ? "Nether" : "End",
-                "status", locked ? ChatColor.RED + "locked" : ChatColor.GREEN + "unlocked");
-    }
-
-    private boolean isDimensionSubcommand(String value) {
-        return value.equalsIgnoreCase("dimension") || value.equalsIgnoreCase("dimensions");
     }
 
     private List<String> matching(List<String> values, String input) {
@@ -437,11 +569,12 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         return result;
     }
 
-    private enum CorePage { MAIN, CRYSTAL }
+    private enum CorePage { MAIN, CRYSTAL, GENERAL, PERFORMANCE, UTILITIES, INVSEE_PLAYERS, EC_PLAYERS }
 
     private static final class CoreGuiHolder implements InventoryHolder {
         private final CorePage page;
         private final Map<Integer, Integer> crystalTicksBySlot = new HashMap<>();
+        private final Map<Integer, UUID> playersBySlot = new HashMap<>();
         private final Inventory inventory;
 
         private CoreGuiHolder(CorePage page, String title) {

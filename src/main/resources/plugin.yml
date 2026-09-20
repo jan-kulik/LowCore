@@ -29,7 +29,7 @@ commands:
 
   anti-mods:
     description: Configure translation-key based client mod detection
-    usage: /anti-mods [on|off|toggle|status|punishment|check|logs|allow|block|bypass-permission]
+    usage: /anti-mods [on|off|toggle|status|punishment|command|check|logs|allow|block|bypass-permission]
     permission: lowcore.antimods.admin
     aliases: [am]
 
@@ -170,6 +170,7 @@ commands:
   sit:
     description: Sit down / stand up
     usage: /sit
+    permission: lowcore.sit
 
 
 
@@ -244,13 +245,6 @@ permissions:
     description: Open a Anvil for others
     default: op
 
-  lowcore.godmode:
-    description: Make yourself invincible
-    default: op
-  lowcore.godmode.others:
-    description: Make someone invincible
-    default: op
-
   lowcore.ec:
     description: Open your ender chest
     default: op
@@ -260,6 +254,9 @@ permissions:
 
   lowcore.invsee:
     description: View inventories
+    default: op
+  lowcore.invsee.edit:
+    description: Edit inventories opened with /invsee
     default: op
 
   lowcore.hat:
@@ -286,13 +283,54 @@ permissions:
   lowcore.spawnmob:
     description: Spawn mobs
     default: op
+  lowcore.spawnmob.restricted:
+    description: Spawn mobs listed as restricted
+    default: op
 
   lowcore.enchant:
     description: Enchant items
     default: op
+  lowcore.enchant.clear:
+    description: Clear item enchantments
+    default: op
+  lowcore.enchant.remove:
+    description: Remove individual item enchantments
+    default: op
+  lowcore.enchant.name:
+    description: Rename items
+    default: op
+  lowcore.enchant.bypass:
+    description: Use unsafe enchantments and levels
+    default: op
+
+  lowcore.repair:
+    description: Repair held items or the full inventory
+    default: op
+
+  lowcore.vanish:
+    description: Toggle vanish mode
+    default: op
+
+  lowcore.speed:
+    description: Change walk and flight speed
+    default: op
+
+  lowcore.god:
+    description: Toggle god mode
+    default: op
+  lowcore.god.others:
+    description: Toggle god mode for other players
+    default: op
+
+  lowcore.killall:
+    description: Remove mobs by group, type or radius
+    default: op
 
   lowcore.performance:
     description: Use /performance
+    default: op
+  lowcore.performance.notify:
+    description: Receive automatic performance warnings
     default: op
 
   lowcore.cleanup:
@@ -316,6 +354,10 @@ permissions:
 
   lowcore.nightvision:
     description: Allows using /nightvision
+    default: op
+
+  lowcore.update:
+    description: Receive update notifications when joining
     default: op
 
   lowcore.sit:

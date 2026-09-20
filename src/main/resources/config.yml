@@ -62,7 +62,6 @@ messages:
 # ======================
 # When locked, players and entities cannot enter the dimension and new Nether
 # portals cannot be activated. Leaving a locked dimension is always allowed.
-# Operators can also use: /lowcore dimension <nether|end> <lock|unlock|status>
 dimensions:
   nether-locked: false
   nether-unlock-at: 0
@@ -81,9 +80,6 @@ dimensions:
   messages:
     locked: "&cThe %dimension% is currently locked."
     end-frame-blocked: "&cThe End is locked, so Ender Eyes cannot be inserted."
-    usage: "&7Usage: &e/lowcore dimension <nether|end> <lock|unlock|status>"
-    status: "&7The %dimension% is currently %status%&7."
-    updated: "&7The %dimension% is now %status%&7."
     command-usage: "&7Usage: &e/lock-dimension <nether|end> [duration|lock|unlock|status]"
     invalid-duration: "&cInvalid duration. Use combinations such as &e30m&c, &e2h&c, &e1d12h&c (maximum 365d)."
     locked-permanent: "&cThe %dimension% is now locked permanently."
@@ -118,7 +114,11 @@ crystal-cooldown:
 anti-mods:
   migrated: true
   enabled: false
-  punishment: "kick" # notify, kick or ban
+  punishment: "kick" # notify, kick, ban or custom
+  # Used when punishment is "custom". Commands run as console without a leading slash.
+  # Available placeholders: %player%, %uuid%, %mods%.
+  custom-commands:
+    - "kick %player% Disallowed client modification: %mods%"
   # Start shortly after login, while the player is normally still loading terrain.
   join-delay-ticks: 10
   loading-screen-migrated: true
@@ -130,6 +130,8 @@ anti-mods:
   confirmation-delay-ticks: 2
   timeout-ticks: 40
   double-check: true
+  # Prevent repeated manual checks of the same player. Automatic login checks are unaffected.
+  manual-check-cooldown-seconds: 10
   clients:
     freecam:
       blocked: true
@@ -152,12 +154,15 @@ anti-mods:
     - "."
     - "*"
   messages:
-    usage: "&7Usage: &e/anti-mods [gui|on|off|status|punishment|check|logs|allow|block|bypass-permission]"
+    usage: "&7Usage: &e/anti-mods [gui|on|off|status|punishment|command|check|logs|allow|block|bypass-permission]"
     enabled: "&aAnti-Mod detection enabled. Joining players will be checked."
     disabled: "&eAnti-Mod detection disabled."
     status: "&7Anti-Mods: %status%&7, punishment: &e%punishment%&7."
-    punishment-usage: "&7Usage: &e/anti-mods punishment <notify|kick|ban>"
+    punishment-usage: "&7Usage: &e/anti-mods punishment <notify|kick|ban|custom>"
     punishment-updated: "&aAnti-Mod punishment set to &e%punishment%&a."
+    command-usage: "&7Usage: &e/anti-mods command <set|add> <command...>&7, or &e<list|clear>"
+    command-updated: "&aAnti-Mod punishment command saved: &e%command%"
+    command-cleared: "&aAll Anti-Mod punishment commands were cleared."
     client-usage: "&7Usage: &e/anti-mods <allow|block> <client>"
     unknown-client: "&cUnknown Anti-Mod client: &e%client%"
     client-blocked: "&c%client% &7is now blocked."
@@ -166,6 +171,7 @@ anti-mods:
     bypass-permission-updated: "&aAnti-Mod bypass permission set to &e%permission%&a."
     check-usage: "&7Usage: &e/anti-mods check <player>"
     check-started: "&7Started an Anti-Mod check for &e%player%&7."
+    check-cooldown: "&e%player% &7can be checked again in &e%seconds%s&7."
     already-running: "&e%player% &7is already being checked."
     bypassed: "&e%player% &7has an Anti-Mod bypass."
     bedrock-skipped: "&e%player% &7is connected through Geyser/Floodgate and was not checked."
@@ -288,16 +294,17 @@ feed:
 # ======================
 sit:
   messages:
-    down: "You have sit down"
-    up: "&eYou have stood up"
+    down: "&aYou are now sitting."
+    up: "&eYou stood up."
 
 
 # ======================
 # Mob Spawner
 # ======================
 spawnmob:
-  # max ammount of mobs that can be spawned at a time
-  max-ammount: 20
+  # Maximum amount of mobs that can be spawned at a time and target distance.
+  max-amount: 20
+  max-distance: 30
 
   # mobs that are restricted
   restricted-mobs:
@@ -364,8 +371,8 @@ godmode:
 # Update Checker
 # ======================
 update-checker:
-  enebled: true
-  notify: true
+  enabled: true
+  notify-console: true
   notify-players-with-permission: true
 
 # ======================
@@ -389,6 +396,8 @@ performance-monitor:
 lag-cleanup:
   enabled: true
   confirm-required: true
+  messages:
+    disabled: "&cLag cleanup is disabled in the general settings."
 
 # ======================
 # Sudo

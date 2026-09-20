@@ -27,7 +27,7 @@ public class HealCommand implements CommandExecutor, TabCompleter {
         }
 
         if (!sender.hasPermission("lowcore.heal")) {
-            LowCore.sendMessage(sender, "no-permission");
+            LowCore.sendConfigMessage(sender, "no-permission");
             return true;
         }
 
@@ -41,12 +41,12 @@ public class HealCommand implements CommandExecutor, TabCompleter {
             }
             Player t  = Bukkit.getPlayerExact(args[0]);
             if (t == null) {
-                LowCore.sendMessage(sender, "unknown-player");
+                LowCore.sendConfigMessage(sender, "unknown-player");
                 return true;
             }
             target = t;
         } else if (args.length > 1) {
-            LowCore.sendMessage(sender, "Usage: /lowcore heal [player]");
+            LowCore.sendMessage(sender, "&cUsage: &e/heal [player]");
             return true;
         }
 

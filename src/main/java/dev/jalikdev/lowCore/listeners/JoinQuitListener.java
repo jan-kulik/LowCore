@@ -27,7 +27,8 @@ public class JoinQuitListener implements Listener {
             event.setJoinMessage(ChatColor.translateAlternateColorCodes('&', raw));
         }
 
-        if (plugin.getConfig().getBoolean("update-checker.notify-players-with-permission", true)
+        if (plugin.getConfig().getBoolean("update-checker.enabled", true)
+                && plugin.getConfig().getBoolean("update-checker.notify-players-with-permission", true)
                 && plugin.isUpdateAvailable()
                 && player.hasPermission("lowcore.update")) {
 
@@ -39,7 +40,7 @@ public class JoinQuitListener implements Listener {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&',
                     "&7Current: &c" + current + " &7→ Latest: &a" + latest));
             player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                    "&7Download: &ahttps://github.com/jalikdev/LowCore/releases"));
+                    "&7Download: &ahttps://github.com/jan-kulik/LowCore/releases"));
         }
     }
 

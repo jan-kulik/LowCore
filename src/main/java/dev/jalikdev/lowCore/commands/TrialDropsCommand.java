@@ -117,7 +117,7 @@ public final class TrialDropsCommand implements CommandExecutor, TabCompleter, L
         inventory.setItem(49, item(Material.PAPER, "&fHow it works",
                 "&7Only Trial Chamber loot is filtered.",
                 "&7The same items still drop everywhere else.", "", "&7Click an item above to change it."));
-        inventory.setItem(51, item(Material.BARRIER, "&cClose", "&7Close this secret menu."));
+        inventory.setItem(51, item(Material.OAK_DOOR, "&eLowCore menu", "&7Return to the control center."));
         if (page < maximumPage) {
             inventory.setItem(53, item(Material.ARROW, "&eNext page", "&7Page " + (page + 2)));
         }
@@ -167,7 +167,7 @@ public final class TrialDropsCommand implements CommandExecutor, TabCompleter, L
                     manager.isEnabled() ? "trial-drops.enabled" : "trial-drops.disabled");
             openGui(player, holder.page);
         } else if (slot == 51) {
-            player.closeInventory();
+            player.performCommand("lowcore");
         } else if (slot == 53 && holder.page < holder.maximumPage) {
             openGui(player, holder.page + 1);
         }

@@ -41,7 +41,10 @@ public class SitCommand implements CommandExecutor, Listener {
                              @NotNull String label,
                              @NotNull String[] args) {
 
-        if (!(sender instanceof Player player)) return true;
+        if (!(sender instanceof Player player)) {
+            LowCore.sendConfigMessage(sender, "player-only");
+            return true;
+        }
 
         if (!isStandingOnBlock(player)) {
             LowCore.sendMessage(sender, "&cYou must be standing!");
@@ -75,6 +78,7 @@ public class SitCommand implements CommandExecutor, Listener {
         seats.put(player.getUniqueId(), seat);
         seatBase.put(player.getUniqueId(), base);
         lastYaw.put(player.getUniqueId(), base.getYaw());
+        LowCore.sendConfigMessage(player, "sit.down");
     }
 
     private void standUp(Player player) {
@@ -93,6 +97,7 @@ public class SitCommand implements CommandExecutor, Listener {
             tp.setPitch(player.getLocation().getPitch());
             player.teleport(tp);
         }
+        LowCore.sendConfigMessage(player, "sit.up");
     }
 
 

@@ -35,7 +35,7 @@ public class AnvilCommand implements CommandExecutor, TabCompleter {
         Player target = player;
 
         if (other) {
-            if (!sender.hasPermission("lowcore.anvil.other")) {
+            if (!sender.hasPermission("lowcore.anvil.others")) {
                 LowCore.sendConfigMessage(sender, "misc.anvil-permission-others");
                 return true;
             }

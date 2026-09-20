@@ -108,7 +108,7 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
         fill(inventory);
         inventory.setItem(11, dimensionItem(Dimension.NETHER));
         inventory.setItem(15, dimensionItem(Dimension.END));
-        inventory.setItem(22, item(Material.BARRIER, "&cClose", "&7Close this menu."));
+        inventory.setItem(22, item(Material.ARROW, "&eLowCore menu", "&7Return to the control center."));
         player.openInventory(inventory);
     }
 
@@ -209,7 +209,7 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
             } else if (slot == 15) {
                 openSettingsGui(player, Dimension.END);
             } else if (slot == 22) {
-                player.closeInventory();
+                player.performCommand("lowcore");
             }
             return;
         }

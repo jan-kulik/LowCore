@@ -14,7 +14,7 @@ public class UpdateChecker {
     private final LowCore plugin;
     private final Logger logger;
 
-    private static final String API_URL = "https://api.github.com/repos/jalikdev/LowCore/releases/latest";
+    private static final String API_URL = "https://api.github.com/repos/jan-kulik/LowCore/releases/latest";
 
     public UpdateChecker(LowCore plugin) {
         this.plugin = plugin;
@@ -67,7 +67,7 @@ public class UpdateChecker {
                         logger.info("A new version of LowCore is available!");
                         logger.info("Current version: " + currentVersion);
                         logger.info("Latest version:  " + latestVersion);
-                        logger.info("Download: https://github.com/jalikdev/LowCore/releases");
+                        logger.info("Download: https://github.com/jan-kulik/LowCore/releases");
                         logger.info("============================================");
                     }
                 } else {
@@ -82,11 +82,14 @@ public class UpdateChecker {
 
 
     private String parseTagName(String json) {
-        String marker = "\"tag_name\":\"";
+        String marker = "\"tag_name\"";
         int index = json.indexOf(marker);
         if (index == -1) return null;
-
-        int start = index + marker.length();
+        int colon = json.indexOf(':', index + marker.length());
+        if (colon == -1) return null;
+        int start = json.indexOf('"', colon + 1);
+        if (start == -1) return null;
+        start++;
         int end = json.indexOf('"', start);
         if (end == -1) return null;
 

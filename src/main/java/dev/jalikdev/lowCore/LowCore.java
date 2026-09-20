@@ -218,9 +218,7 @@ public class LowCore extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sit, this);
 
 
-        if (getConfig().getBoolean("update-checker.enabled", true)) {
-            new UpdateChecker(this).checkForUpdates();
-        }
+        if (getConfig().getBoolean("update-checker.enabled", true)) checkForUpdatesNow();
 
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(new OfflineInventoryListener(this), this);
@@ -310,6 +308,22 @@ public class LowCore extends JavaPlugin {
             changed = true;
         }
 
+        if (!diskConfig.contains("update-checker.enabled") && diskConfig.contains("update-checker.enebled")) {
+            getConfig().set("update-checker.enabled", diskConfig.getBoolean("update-checker.enebled", true));
+            getConfig().set("update-checker.enebled", null);
+            changed = true;
+        }
+        if (!diskConfig.contains("update-checker.notify-console") && diskConfig.contains("update-checker.notify")) {
+            getConfig().set("update-checker.notify-console", diskConfig.getBoolean("update-checker.notify", true));
+            getConfig().set("update-checker.notify", null);
+            changed = true;
+        }
+        if (!diskConfig.contains("spawnmob.max-amount") && diskConfig.contains("spawnmob.max-ammount")) {
+            getConfig().set("spawnmob.max-amount", diskConfig.getInt("spawnmob.max-ammount", 20));
+            getConfig().set("spawnmob.max-ammount", null);
+            changed = true;
+        }
+
         if (changed) {
             saveConfig();
         }
@@ -383,6 +397,7 @@ public class LowCore extends JavaPlugin {
         if (antiFreecamManager != null && !antiFreecamManager.isEnabled()) {
             antiFreecamManager.shutdown();
         }
+        reloadPerformanceMonitor();
         sendConfigMessage(sender, "reload");
         getLogger().info("Configuration reloaded by " + sender.getName());
         audit(sender, "Reloaded LowCore configuration");
@@ -392,6 +407,14 @@ public class LowCore extends JavaPlugin {
         if (auditLog != null) {
             auditLog.logAction(actor, action);
         }
+    }
+
+    public void reloadPerformanceMonitor() {
+        if (performanceMonitor != null) performanceMonitor.reload();
+    }
+
+    public void checkForUpdatesNow() {
+        new UpdateChecker(this).checkForUpdates();
     }
 
     public boolean isUpdateAvailable() {

@@ -233,10 +233,18 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
 
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) AS cnt FROM anti_freecam_logs")) {
                 if (rs.next()) {
-                    LowCore.sendMessage(sender, "&7Table &aanti_freecam_logs&7: &e" + rs.getInt("cnt") + " &7rows");
+                    LowCore.sendMessage(sender, "&7Anti-Mod logs: &e" + rs.getInt("cnt") + " &7rows");
                 }
             } catch (Exception e) {
-                LowCore.sendMessage(sender, "&7Table &aanti_freecam_logs&7: &cerror");
+                LowCore.sendMessage(sender, "&7Anti-Mod logs: &cerror");
+            }
+
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) AS cnt FROM audit_logs")) {
+                if (rs.next()) {
+                    LowCore.sendMessage(sender, "&7Admin audit logs: &e" + rs.getInt("cnt") + " &7rows");
+                }
+            } catch (Exception e) {
+                LowCore.sendMessage(sender, "&7Admin audit logs: &cerror");
             }
 
         } catch (Exception e) {
@@ -394,7 +402,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
     private boolean debugStatus(CommandSender sender) {
         boolean jq = plugin.getConfig().getBoolean("join-quit-messages.enabled", true);
         boolean motd = plugin.getConfig().getBoolean("motd.enabled", true);
-        boolean upd = plugin.getConfig().getBoolean("update-checker.enebled", true);
+        boolean upd = plugin.getConfig().getBoolean("update-checker.enabled", true);
         boolean perf = plugin.getConfig().getBoolean("performance.enabled", true);
         boolean perfMon = plugin.getConfig().getBoolean("performance-monitor.enabled", true);
         boolean lagCleanup = plugin.getConfig().getBoolean("lag-cleanup.enabled", true);

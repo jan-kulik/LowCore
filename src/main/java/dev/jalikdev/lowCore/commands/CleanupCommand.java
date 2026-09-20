@@ -12,7 +12,9 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
@@ -47,6 +49,11 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
+        if (!plugin.getConfig().getBoolean("lag-cleanup.enabled", true)) {
+            LowCore.sendConfigMessage(p, "lag-cleanup.disabled");
+            return true;
+        }
+
         openMainGUI(p);
         return true;
     }
@@ -70,13 +77,15 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
 
 
     private void openMainGUI(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 27, "§aLag Cleanup");
+        CleanupHolder holder = new CleanupHolder(null, false, "§8Lag Cleanup");
+        Inventory inv = holder.inventory;
 
         inv.setItem(11, createBtn(Material.BARRIER, "§cRemove Items", "§7Remove all dropped items."));
         inv.setItem(12, createBtn(Material.EXPERIENCE_BOTTLE, "§eRemove XP Orbs", "§7Remove all XP orbs."));
         inv.setItem(13, createBtn(Material.OAK_BOAT, "§bRemove Boats/Minecarts", "§7Remove all riding vehicles."));
         inv.setItem(14, createBtn(Material.ZOMBIE_HEAD, "§cRemove Hostile Mobs", "§7Remove all hostile creatures."));
         inv.setItem(15, createBtn(Material.COW_SPAWN_EGG, "§aRemove Passive Mobs", "§7Remove all passive creatures."));
+        inv.setItem(22, createBtn(Material.ARROW, "§eLowCore menu", "§7Return to the control center."));
 
         fillEmptySlots(inv);
 
@@ -84,12 +93,11 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private void openConfirmGUI(Player player, String type) {
-        Inventory inv = Bukkit.createInventory(null, 27, "§cConfirm " + type);
+        CleanupHolder holder = new CleanupHolder(type, true, "§cConfirm " + type);
+        Inventory inv = holder.inventory;
 
         inv.setItem(11, createBtn(Material.GREEN_CONCRETE, "§aConfirm", "§7Click to confirm removal."));
         inv.setItem(15, createBtn(Material.RED_CONCRETE, "§cCancel", "§7Click to go back."));
-
-        player.setMetadata("cleanup-type", new org.bukkit.metadata.FixedMetadataValue(plugin, type));
 
         fillEmptySlots(inv);
 
@@ -107,41 +115,43 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
 
     @EventHandler
     public void onInvClick(InventoryClickEvent e) {
-        if (e.getClickedInventory() == null) return;
-        if (!(e.getWhoClicked() instanceof Player p)) return;
-
-        String title = e.getView().getTitle();
-
-        if (title.equals("§aLag Cleanup")) {
-            e.setCancelled(true);
-            if (e.getCurrentItem() == null) return;
-            String name = e.getCurrentItem().getItemMeta().getDisplayName();
-
-            if (name.contains("Items")) openConfirmGUI(p, "items");
-            if (name.contains("XP Orbs")) openConfirmGUI(p, "xp");
-            if (name.contains("Boats")) openConfirmGUI(p, "vehicles");
-            if (name.contains("Hostile")) openConfirmGUI(p, "hostile");
-            if (name.contains("Passive")) openConfirmGUI(p, "passive");
+        Inventory top = e.getView().getTopInventory();
+        if (!(top.getHolder() instanceof CleanupHolder holder)) return;
+        e.setCancelled(true);
+        if (!(e.getWhoClicked() instanceof Player p) || e.getClickedInventory() != top) return;
+        int slot = e.getSlot();
+        if (holder.confirmation) {
+            if (slot == 11) runCleanup(p, holder.type);
+            else if (slot == 15) openMainGUI(p);
+            return;
         }
-
-        if (title.startsWith("§cConfirm")) {
-            e.setCancelled(true);
-            if (e.getCurrentItem() == null) return;
-
-            String display = e.getCurrentItem().getItemMeta().getDisplayName();
-            String type = p.getMetadata("cleanup-type").get(0).asString();
-
-            if (display.contains("Confirm")) {
-                int removed = performCleanup(type);
-                plugin.audit(p, "Cleanup " + type + " removed " + removed + " entities/items");
-                p.sendMessage(plugin.getPrefix() + "§aRemoved §e" + removed + " §aentities/items.");
-                p.closeInventory();
-            }
-
-            if (display.contains("Cancel")) {
-                openMainGUI(p);
-            }
+        if (slot == 22) {
+            p.performCommand("lowcore");
+            return;
         }
+        String type = switch (slot) {
+            case 11 -> "items";
+            case 12 -> "xp";
+            case 13 -> "vehicles";
+            case 14 -> "hostile";
+            case 15 -> "passive";
+            default -> null;
+        };
+        if (type == null) return;
+        if (plugin.getConfig().getBoolean("lag-cleanup.confirm-required", true)) openConfirmGUI(p, type);
+        else runCleanup(p, type);
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof CleanupHolder) event.setCancelled(true);
+    }
+
+    private void runCleanup(Player player, String type) {
+        int removed = performCleanup(type);
+        plugin.audit(player, "Cleanup " + type + " removed " + removed + " entities/items");
+        player.sendMessage(plugin.getPrefix() + "§aRemoved §e" + removed + " §aentities/items.");
+        openMainGUI(player);
     }
 
     private boolean isProtectedEntity(Entity ent) {
@@ -211,5 +221,22 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
                                                 @NotNull String label,
                                                 @NotNull String[] args) {
         return Collections.emptyList();
+    }
+
+    private static final class CleanupHolder implements InventoryHolder {
+        private final String type;
+        private final boolean confirmation;
+        private final Inventory inventory;
+
+        private CleanupHolder(String type, boolean confirmation, String title) {
+            this.type = type;
+            this.confirmation = confirmation;
+            this.inventory = Bukkit.createInventory(this, 27, title);
+        }
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
     }
 }

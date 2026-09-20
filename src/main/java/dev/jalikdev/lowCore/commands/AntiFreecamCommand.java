@@ -18,6 +18,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -39,13 +40,17 @@ import java.util.UUID;
 public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, Listener {
 
     private static final List<String> ACTIONS = List.of("gui", "on", "off", "toggle", "status",
-            "punishment", "check", "logs", "allow", "block", "bypass-permission");
-    private static final List<String> PUNISHMENTS = List.of("notify", "kick", "ban");
+            "punishment", "command", "check", "logs", "allow", "block", "bypass-permission");
+    private static final List<String> PUNISHMENTS = List.of("notify", "kick", "ban", "custom");
+    private static final List<String> LOG_RESULTS = List.of("ALL", "DETECTED", "ALLOWED", "CLEAN",
+            "TIMEOUT", "PROTECTED", "INCONCLUSIVE");
     private static final int[] LOG_PAGE_OPTIONS = {1, 3, 5, 10, 20};
+    private static final int[] MANUAL_COOLDOWN_OPTIONS = {0, 5, 10, 30, 60};
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
             .withZone(ZoneId.systemDefault());
 
     private final AntiFreecamManager manager;
+    private final Map<UUID, LogFilter> logFilters = new HashMap<>();
 
     public AntiFreecamCommand(AntiFreecamManager manager) {
         this.manager = manager;
@@ -70,8 +75,9 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             case "toggle" -> setEnabled(sender, !manager.isEnabled());
             case "status" -> sendStatus(sender);
             case "punishment" -> setPunishment(sender, args);
+            case "command" -> setCustomCommand(sender, args);
             case "check" -> checkPlayer(sender, args);
-            case "logs" -> showLogs(sender);
+            case "logs" -> showLogs(sender, args);
             case "allow", "block" -> setClient(sender, args);
             case "bypass-permission" -> setBypassPermission(sender, args);
             default -> LowCore.sendConfigMessage(sender, "anti-mods.usage");
@@ -96,6 +102,44 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         }
         manager.setPunishment(punishment);
         LowCore.sendConfigMessage(sender, "anti-mods.punishment-updated", "punishment", punishment.displayName());
+    }
+
+    private void setCustomCommand(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            LowCore.sendConfigMessage(sender, "anti-mods.command-usage");
+            return;
+        }
+        String operation = args[1].toLowerCase(Locale.ROOT);
+        if (operation.equals("list")) {
+            LowCore.sendMessage(sender, "&7Configured Anti-Mod punishment commands:");
+            List<String> commands = manager.getCustomCommands();
+            if (commands.isEmpty()) LowCore.sendMessage(sender, "&8- &7none");
+            else commands.forEach(value -> LowCore.sendMessage(sender, "&8- &e" + value));
+            return;
+        }
+        if (operation.equals("clear") && args.length == 2) {
+            manager.setCustomCommands(List.of());
+            manager.audit(sender, "Cleared Anti-Mod custom punishment commands");
+            LowCore.sendConfigMessage(sender, "anti-mods.command-cleared");
+            return;
+        }
+        if ((operation.equals("set") || operation.equals("add")) && args.length >= 3) {
+            String configured = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)).strip();
+            if (configured.startsWith("/")) configured = configured.substring(1);
+            if (configured.isBlank()) {
+                LowCore.sendConfigMessage(sender, "anti-mods.command-usage");
+                return;
+            }
+            List<String> commands = operation.equals("add")
+                    ? new ArrayList<>(manager.getCustomCommands()) : new ArrayList<>();
+            commands.add(configured);
+            manager.setCustomCommands(commands);
+            manager.audit(sender, (operation.equals("add") ? "Added" : "Set")
+                    + " Anti-Mod custom punishment command: " + configured);
+            LowCore.sendConfigMessage(sender, "anti-mods.command-updated", "command", configured);
+            return;
+        }
+        LowCore.sendConfigMessage(sender, "anti-mods.command-usage");
     }
 
     private void setClient(CommandSender sender, String[] args) {
@@ -146,6 +190,9 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             case ALREADY_RUNNING -> LowCore.sendConfigMessage(sender, "anti-mods.already-running", "player", target.getName());
             case BYPASSED -> LowCore.sendConfigMessage(sender, "anti-mods.bypassed", "player", target.getName());
             case BEDROCK -> LowCore.sendConfigMessage(sender, "anti-mods.bedrock-skipped", "player", target.getName());
+            case COOLDOWN -> LowCore.sendConfigMessage(sender, "anti-mods.check-cooldown",
+                    "player", target.getName(), "seconds",
+                    Long.toString(manager.getManualCooldownRemainingSeconds(target.getUniqueId())));
             case OFFLINE -> LowCore.sendConfigMessage(sender, "unknown-player");
             case FAILED -> LowCore.sendConfigMessage(sender, "anti-mods.failed", "player", target.getName());
         }
@@ -157,13 +204,17 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
                 "punishment", manager.getPunishment().displayName());
     }
 
-    private void showLogs(CommandSender sender) {
+    private void showLogs(CommandSender sender, String[] args) {
+        String playerFilter = args.length >= 2 && !args[1].equalsIgnoreCase("all") ? args[1] : null;
         if (sender instanceof Player player) {
+            if (args.length >= 2) logFilters.put(player.getUniqueId(),
+                    playerFilter == null ? LogFilter.empty() : new LogFilter("ALL", null, playerFilter));
             openLogsGui(player, 0);
             return;
         }
-        List<AntiFreecamLogEntry> logs = manager.getRecentLogs(10, 0);
-        LowCore.sendMessage(sender, "&7Recent Anti-Mod logs (&e" + manager.getLogCount() + " total&7):");
+        List<AntiFreecamLogEntry> logs = manager.getRecentLogs(10, 0, null, null, playerFilter);
+        LowCore.sendMessage(sender, "&7Recent Anti-Mod logs (&e"
+                + manager.getLogCount(null, null, playerFilter) + " matching&7):");
         for (AntiFreecamLogEntry entry : logs) {
             LowCore.sendMessage(sender, "&8- &e" + entry.playerName() + " &7" + entry.result()
                     + " &8[" + entry.mods() + "] &7" + LOG_TIME.format(Instant.ofEpochMilli(entry.checkedAt())));
@@ -185,9 +236,13 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             case NOTIFY -> Material.BELL;
             case KICK -> Material.LEATHER_BOOTS;
             case BAN -> Material.IRON_BARS;
+            case CUSTOM -> Material.COMMAND_BLOCK;
         };
         inventory.setItem(12, item(punishmentMaterial, "&ePunishment: &f" + punishment.displayName(),
-                "&7Only blocked detected clients are punished.", "", "&eClick to cycle"));
+                "&7Only blocked detected clients are punished.",
+                punishment == Punishment.CUSTOM ? "&7Commands: &e" + manager.getCustomCommands().size() : "",
+                punishment == Punishment.CUSTOM ? "&7Set with: &e/anti-mods command set <command>" : "",
+                "", "&eClick to cycle"));
         inventory.setItem(14, item(Material.COMPARATOR, "&bClient rules",
                 "&7Allow or block each detectable client.", "", "&eClick to configure"));
         inventory.setItem(16, item(Material.REPEATER, "&dGeneral settings",
@@ -235,6 +290,10 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
                 "&7Set with:", "&e/anti-mods bypass-permission <permission|off>"));
         holder.inventory.setItem(16, item(Material.BOOKSHELF, "&6Log pages: &f" + manager.getMaxLogPages(),
                 "&7Each page stores 36 checks.", "&7Old entries are removed automatically.", "", "&eClick to cycle"));
+        int cooldown = manager.getManualCheckCooldownSeconds();
+        holder.inventory.setItem(18, item(Material.CLOCK, "&dManual check cooldown: &f"
+                        + (cooldown == 0 ? "disabled" : cooldown + "s"),
+                "&7Limits repeated manual checks per target.", "&7Automatic join checks are unaffected.", "", "&eClick to cycle"));
         holder.inventory.setItem(22, item(Material.ARROW, "&eBack", "&7Return to Anti-Mods settings."));
         player.openInventory(holder.inventory);
     }
@@ -255,20 +314,31 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
     }
 
     private void openLogsGui(Player player, int requestedPage) {
+        LogFilter filter = logFilters.computeIfAbsent(player.getUniqueId(), ignored -> LogFilter.empty());
         int pageSize = manager.getLogPageSize();
-        int total = Math.min(manager.getLogCount(), pageSize * manager.getMaxLogPages());
+        int total = Math.min(manager.getLogCount(filter.resultValue(), filter.client, filter.player),
+                pageSize * manager.getMaxLogPages());
         int maximumPage = Math.max(0, (total - 1) / pageSize);
         int page = Math.max(0, Math.min(requestedPage, maximumPage));
         GuiHolder holder = new GuiHolder(GuiPage.LOGS, 54,
                 "§8Anti-Mod Logs §7(" + (page + 1) + "/" + (maximumPage + 1) + ")", page);
         fill(holder.inventory);
-        List<AntiFreecamLogEntry> logs = manager.getRecentLogs(pageSize, page * pageSize);
+        List<AntiFreecamLogEntry> logs = manager.getRecentLogs(pageSize, page * pageSize,
+                filter.resultValue(), filter.client, filter.player);
         for (int slot = 0; slot < logs.size(); slot++) holder.inventory.setItem(slot, logItem(logs.get(slot)));
         if (page > 0) holder.inventory.setItem(45, item(Material.ARROW, "&ePrevious page"));
+        holder.inventory.setItem(46, item(Material.HOPPER, "&eResult: &f" + filter.result,
+                "&7Click to cycle the result filter."));
         holder.inventory.setItem(47, item(Material.OAK_DOOR, "&eBack", "&7Return to settings."));
         holder.inventory.setItem(49, item(Material.PAPER, "&fPage " + (page + 1) + " / " + (maximumPage + 1),
                 "&7Stored checks: &e" + total, "&7Configured maximum: &e" + manager.getMaxLogPages() + " pages"));
+        holder.inventory.setItem(50, item(Material.COMPASS, "&bClient: &f"
+                        + (filter.client == null ? "ALL" : filter.client),
+                "&7Click to cycle the client filter."));
         holder.inventory.setItem(51, item(Material.LAVA_BUCKET, "&cClear logs", "&7Delete all Anti-Mod logs.", "", "&cClick to continue"));
+        holder.inventory.setItem(52, item(Material.MILK_BUCKET, "&fReset filters",
+                "&7Client: &e" + (filter.client == null ? "ALL" : filter.client),
+                "&7Player: &e" + (filter.player == null ? "ALL" : filter.player), "", "&eClick to reset"));
         if (page < maximumPage) holder.inventory.setItem(53, item(Material.ARROW, "&eNext page"));
         player.openInventory(holder.inventory);
     }
@@ -334,6 +404,11 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
                     manager.setMaxLogPages(nextLogPageOption(manager.getMaxLogPages()));
                     manager.audit(player, "Set Anti-Mod log pages to " + manager.getMaxLogPages());
                     openSettingsGui(player);
+                } else if (slot == 18) {
+                    manager.setManualCheckCooldownSeconds(nextManualCooldown(manager.getManualCheckCooldownSeconds()));
+                    manager.audit(player, "Set Anti-Mod manual check cooldown to "
+                            + manager.getManualCheckCooldownSeconds() + " seconds");
+                    openSettingsGui(player);
                 } else if (slot == 22) openMainGui(player);
             }
             case PLAYERS -> {
@@ -350,8 +425,22 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             }
             case LOGS -> {
                 if (slot == 45 && holder.pageNumber > 0) openLogsGui(player, holder.pageNumber - 1);
+                else if (slot == 46) {
+                    LogFilter current = logFilters.computeIfAbsent(player.getUniqueId(), ignored -> LogFilter.empty());
+                    logFilters.put(player.getUniqueId(), current.nextResult());
+                    openLogsGui(player, 0);
+                }
                 else if (slot == 47) openMainGui(player);
+                else if (slot == 50) {
+                    LogFilter current = logFilters.computeIfAbsent(player.getUniqueId(), ignored -> LogFilter.empty());
+                    logFilters.put(player.getUniqueId(), current.nextClient());
+                    openLogsGui(player, 0);
+                }
                 else if (slot == 51) openClearLogsGui(player);
+                else if (slot == 52) {
+                    logFilters.put(player.getUniqueId(), LogFilter.empty());
+                    openLogsGui(player, 0);
+                }
                 else if (slot == 53) openLogsGui(player, holder.pageNumber + 1);
             }
             case CLEAR_LOGS -> {
@@ -379,7 +468,7 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         else if (slot == 16) openSettingsGui(player);
         else if (slot == 29) openPlayerGui(player);
         else if (slot == 31) openLogsGui(player, 0);
-        else if (slot == 33) player.closeInventory();
+        else if (slot == 33) player.performCommand("lowcore");
     }
 
     @EventHandler
@@ -387,9 +476,19 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         if (event.getView().getTopInventory().getHolder() instanceof GuiHolder) event.setCancelled(true);
     }
 
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        logFilters.remove(event.getPlayer().getUniqueId());
+    }
+
     private int nextLogPageOption(int current) {
         for (int option : LOG_PAGE_OPTIONS) if (option > current) return option;
         return LOG_PAGE_OPTIONS[0];
+    }
+
+    private int nextManualCooldown(int current) {
+        for (int option : MANUAL_COOLDOWN_OPTIONS) if (option > current) return option;
+        return MANUAL_COOLDOWN_OPTIONS[0];
     }
 
     private AntiModClient findClient(String input) {
@@ -402,8 +501,11 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
     }
 
     private ItemStack playerHead(Player player) {
+        long cooldown = manager.getManualCooldownRemainingSeconds(player.getUniqueId());
         ItemStack item = item(Material.PLAYER_HEAD, "&e" + player.getName(),
-                manager.isBypassed(player) ? "&7Status: &eBypassed" : "&7Run all translation-key probes.", "", "&eClick to check");
+                manager.isBypassed(player) ? "&7Status: &eBypassed"
+                        : cooldown > 0 ? "&7Cooldown: &e" + cooldown + "s"
+                        : "&7Run all translation-key probes.", "", "&eClick to check");
         if (item.getItemMeta() instanceof SkullMeta meta) {
             meta.setOwningPlayer(player);
             item.setItemMeta(meta);
@@ -437,6 +539,9 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         if (!sender.hasPermission("lowcore.antimods.admin")) return List.of();
         if (args.length == 1) return matching(ACTIONS, args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("punishment")) return matching(PUNISHMENTS, args[1]);
+        if (args.length == 2 && args[0].equalsIgnoreCase("command")) {
+            return matching(List.of("set", "add", "list", "clear"), args[1]);
+        }
         if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT)))
@@ -444,6 +549,11 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("allow") || args[0].equalsIgnoreCase("block"))) {
             return matching(manager.getClients().stream().map(AntiModClient::id).toList(), args[1]);
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("logs")) {
+            return Bukkit.getOnlinePlayers().stream().map(Player::getName)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT)))
+                    .sorted(String.CASE_INSENSITIVE_ORDER).toList();
         }
         return List.of();
     }
@@ -454,6 +564,22 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
     }
 
     private enum GuiPage { MAIN, CLIENTS, SETTINGS, PLAYERS, LOGS, CLEAR_LOGS }
+
+    private record LogFilter(String result, String client, String player) {
+        private static LogFilter empty() { return new LogFilter("ALL", null, null); }
+        private String resultValue() { return result.equals("ALL") ? null : result; }
+        private LogFilter nextResult() {
+            int index = LOG_RESULTS.indexOf(result);
+            return new LogFilter(LOG_RESULTS.get((index + 1) % LOG_RESULTS.size()), client, player);
+        }
+        private LogFilter nextClient() {
+            List<String> values = new ArrayList<>();
+            values.add(null);
+            for (AntiModClient value : AntiModClient.values()) values.add(value.displayName());
+            int index = values.indexOf(client);
+            return new LogFilter(result, values.get((index + 1) % values.size()), player);
+        }
+    }
 
     private static final class GuiHolder implements InventoryHolder {
         private final GuiPage page;

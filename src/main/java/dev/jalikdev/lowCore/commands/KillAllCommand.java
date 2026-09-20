@@ -29,13 +29,13 @@ public class KillAllCommand implements CommandExecutor, TabCompleter {
                              @NotNull String label, @NotNull String[] args) {
 
         if (!(sender instanceof Player)) {
-            LowCore.sendConfigMessage(sender, "messages.player-only");
+            LowCore.sendConfigMessage(sender, "player-only");
             return true;
         }
         Player p = (Player) sender;
 
         if (!p.hasPermission("lowcore.killall")) {
-            LowCore.sendConfigMessage(p, "messages.no-permission");
+            LowCore.sendConfigMessage(p, "no-permission");
             return true;
         }
 
