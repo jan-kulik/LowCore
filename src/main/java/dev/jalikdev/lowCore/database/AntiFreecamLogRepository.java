@@ -82,6 +82,14 @@ public final class AntiFreecamLogRepository {
         }
     }
 
+    public int clear() {
+        try (Statement statement = connection().createStatement()) {
+            return statement.executeUpdate("DELETE FROM anti_freecam_logs");
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Could not clear anti-mod logs", exception);
+        }
+    }
+
     public void trimTo(int maximumEntries) {
         int safeMaximum = Math.max(100, maximumEntries);
         String sql = """

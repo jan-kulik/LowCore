@@ -133,6 +133,7 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
 
             if (display.contains("Confirm")) {
                 int removed = performCleanup(type);
+                plugin.audit(p, "Cleanup " + type + " removed " + removed + " entities/items");
                 p.sendMessage(plugin.getPrefix() + "§aRemoved §e" + removed + " §aentities/items.");
                 p.closeInventory();
             }

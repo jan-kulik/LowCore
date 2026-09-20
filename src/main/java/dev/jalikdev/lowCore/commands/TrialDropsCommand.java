@@ -154,12 +154,15 @@ public final class TrialDropsCommand implements CommandExecutor, TabCompleter, L
         if (material != null) {
             boolean blocked = !manager.isBlocked(material);
             manager.setBlocked(material, blocked);
+            manager.audit(player, "Set Trial Chamber drop " + TrialDropManager.displayName(material)
+                    + " to " + (blocked ? "BLOCKED" : "ALLOWED"));
             sendItemState(player, material, blocked);
             openGui(player, holder.page);
         } else if (slot == 45 && holder.page > 0) {
             openGui(player, holder.page - 1);
         } else if (slot == 47) {
             manager.setEnabled(!manager.isEnabled());
+            manager.audit(player, "Set Trial Chamber drop filtering to " + manager.isEnabled());
             LowCore.sendConfigMessage(player,
                     manager.isEnabled() ? "trial-drops.enabled" : "trial-drops.disabled");
             openGui(player, holder.page);

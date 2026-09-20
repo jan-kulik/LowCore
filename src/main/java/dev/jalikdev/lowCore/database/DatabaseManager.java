@@ -76,6 +76,18 @@ public class DatabaseManager {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_anti_freecam_logs_checked_at " +
                     "ON anti_freecam_logs(checked_at DESC)");
         }
+
+        String sqlAuditLogs = "CREATE TABLE IF NOT EXISTS audit_logs (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "actor_uuid TEXT," +
+                "actor_name TEXT NOT NULL," +
+                "action TEXT NOT NULL," +
+                "created_at INTEGER NOT NULL" +
+                ");";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(sqlAuditLogs);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)");
+        }
     }
 
     public void close() {

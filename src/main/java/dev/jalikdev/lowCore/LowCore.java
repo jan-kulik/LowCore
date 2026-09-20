@@ -18,6 +18,7 @@ import dev.jalikdev.lowCore.world.WorldInventoryManager;
 
 import dev.jalikdev.lowCore.database.DatabaseManager;
 import dev.jalikdev.lowCore.database.AntiFreecamLogRepository;
+import dev.jalikdev.lowCore.database.AdminAuditLogRepository;
 import dev.jalikdev.lowCore.database.LastLocationRepository;
 
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository;
@@ -46,6 +47,7 @@ public class LowCore extends JavaPlugin {
     private DatabaseManager databaseManager;
     private LastLocationRepository lastLocationRepository;
     private AntiFreecamLogRepository antiFreecamLogRepository;
+    private LogCommand auditLog;
 
     public static LowCore getInstance() {
         return instance;
@@ -83,6 +85,7 @@ public class LowCore extends JavaPlugin {
         LowcoreCommand lowcoreCommand = new LowcoreCommand(this);
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
         Objects.requireNonNull(getCommand("lowcore")).setTabCompleter(lowcoreCommand);
+        getServer().getPluginManager().registerEvents(lowcoreCommand, this);
 
         LockDimensionCommand lockDimensionCommand = new LockDimensionCommand(this, dimensionLockManager);
         Objects.requireNonNull(getCommand("lock-dimension")).setExecutor(lockDimensionCommand);
@@ -96,8 +99,8 @@ public class LowCore extends JavaPlugin {
         getServer().getPluginManager().registerEvents(crystalCooldownListener, this);
 
         AntiFreecamCommand antiFreecamCommand = new AntiFreecamCommand(antiFreecamManager);
-        Objects.requireNonNull(getCommand("anti-freecam")).setExecutor(antiFreecamCommand);
-        Objects.requireNonNull(getCommand("anti-freecam")).setTabCompleter(antiFreecamCommand);
+        Objects.requireNonNull(getCommand("anti-mods")).setExecutor(antiFreecamCommand);
+        Objects.requireNonNull(getCommand("anti-mods")).setTabCompleter(antiFreecamCommand);
         getServer().getPluginManager().registerEvents(antiFreecamCommand, this);
         getServer().getPluginManager().registerEvents(antiFreecamManager, this);
 
@@ -178,10 +181,10 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("killall")).setExecutor(killAllCommand);
         Objects.requireNonNull(getCommand("killall")).setTabCompleter(killAllCommand);
 
-        LogCommand logCommand = new LogCommand(this);
-        Objects.requireNonNull(getCommand("log")).setExecutor(logCommand);
-        Objects.requireNonNull(getCommand("log")).setTabCompleter(logCommand);
-        getServer().getPluginManager().registerEvents(logCommand, this);
+        auditLog = new LogCommand(this, new AdminAuditLogRepository(databaseManager));
+        Objects.requireNonNull(getCommand("log")).setExecutor(auditLog);
+        Objects.requireNonNull(getCommand("log")).setTabCompleter(auditLog);
+        getServer().getPluginManager().registerEvents(auditLog, this);
 
         getServer().getPluginManager().registerEvents(new MotdListener(this), this);
 
@@ -261,7 +264,8 @@ public class LowCore extends JavaPlugin {
         YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(configFile);
         boolean changed = false;
 
-        if (!diskConfig.getBoolean("anti-freecam.loading-screen-migrated", false)) {
+        if (diskConfig.contains("anti-freecam")
+                && !diskConfig.getBoolean("anti-freecam.loading-screen-migrated", false)) {
             if (diskConfig.getLong("anti-freecam.join-delay-ticks", 60L) == 60L) {
                 getConfig().set("anti-freecam.join-delay-ticks", 1L);
             }
@@ -272,7 +276,8 @@ public class LowCore extends JavaPlugin {
         // 2.5.0 started after one tick, which some clients lost among their
         // initial chunk packets. Give login ten ticks, retry once, and erase
         // the client-only sign immediately so neither automatic attempt flashes.
-        if (!diskConfig.getBoolean("anti-freecam.invisible-probe-migrated", false)) {
+        if (diskConfig.contains("anti-freecam")
+                && !diskConfig.getBoolean("anti-freecam.invisible-probe-migrated", false)) {
             if (getConfig().getLong("anti-freecam.join-delay-ticks", 1L) == 1L) {
                 getConfig().set("anti-freecam.join-delay-ticks", 10L);
             }
@@ -286,6 +291,22 @@ public class LowCore extends JavaPlugin {
                 getConfig().set("anti-freecam.join-retry-delay-ticks", 10L);
             }
             getConfig().set("anti-freecam.invisible-probe-migrated", true);
+            changed = true;
+        }
+
+        // 3.0 renames the public feature and preserves existing Anti-Freecam
+        // timing, punishment and enabled-state settings on upgraded servers.
+        if (!diskConfig.getBoolean("anti-mods.migrated", false)) {
+            org.bukkit.configuration.ConfigurationSection oldSection =
+                    diskConfig.getConfigurationSection("anti-freecam");
+            if (oldSection != null) {
+                for (String path : oldSection.getKeys(true)) {
+                    if (!oldSection.isConfigurationSection(path)) {
+                        getConfig().set("anti-mods." + path, oldSection.get(path));
+                    }
+                }
+            }
+            getConfig().set("anti-mods.migrated", true);
             changed = true;
         }
 
@@ -364,6 +385,13 @@ public class LowCore extends JavaPlugin {
         }
         sendConfigMessage(sender, "reload");
         getLogger().info("Configuration reloaded by " + sender.getName());
+        audit(sender, "Reloaded LowCore configuration");
+    }
+
+    public void audit(CommandSender actor, String action) {
+        if (auditLog != null) {
+            auditLog.logAction(actor, action);
+        }
     }
 
     public boolean isUpdateAvailable() {

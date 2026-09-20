@@ -1,10 +1,21 @@
 package dev.jalikdev.lowCore.commands;
 
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import org.jetbrains.annotations.NotNull;
@@ -12,12 +23,14 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class LowcoreCommand implements CommandExecutor, TabCompleter {
+public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
     private final LowCore plugin;
-    private final List<String> mainSubcommands = Arrays.asList("help", "info", "reload", "dimension");
+    private final List<String> mainSubcommands = Arrays.asList("gui", "help", "info", "reload", "dimension");
     private final List<String> dimensions = Arrays.asList("nether", "end");
     private final List<String> dimensionActions = Arrays.asList("lock", "unlock", "status");
     private final List<String> helpTopics = Arrays.asList(
@@ -35,11 +48,18 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
                              @NotNull String[] args) {
 
         if (args.length == 0) {
-            sendMainHelp(sender);
+            if (sender instanceof Player player) openMainGui(player);
+            else sendMainHelp(sender);
             return true;
         }
 
         String sub = args[0].toLowerCase();
+
+        if (sub.equals("gui")) {
+            if (sender instanceof Player player) openMainGui(player);
+            else LowCore.sendConfigMessage(sender, "player-only");
+            return true;
+        }
 
         if (sub.equals("help")) {
             if (args.length == 1) {
@@ -88,7 +108,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&a/lowcore dimension &7- Lock or unlock the Nether and End.");
         LowCore.sendMessage(sender, "&a/lock-dimension <nether|end> [time] &7- Permanent or timed dimension lock.");
         LowCore.sendMessage(sender, "&a/crystal-cooldown <ticks|off|status> &7- Set the Crystal placement delay.");
-        LowCore.sendMessage(sender, "&a/anti-freecam &7- Configure Freecam and Meteor detection.");
+        LowCore.sendMessage(sender, "&a/anti-mods &7- Configure client-mod detection.");
 
         LowCore.sendMessage(sender, "&a/ec &7- Open your ender chest.");
         LowCore.sendMessage(sender, "&a/enchant &7- Advanced enchanting / renaming.");
@@ -216,6 +236,117 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private void openMainGui(Player player) {
+        CoreGuiHolder holder = new CoreGuiHolder(CorePage.MAIN, "§8LowCore Control Center");
+        Inventory inventory = holder.inventory;
+        fill(inventory);
+
+        boolean netherLocked = plugin.getDimensionLockManager().isLocked(Dimension.NETHER);
+        boolean endLocked = plugin.getDimensionLockManager().isLocked(Dimension.END);
+        inventory.setItem(10, item(Material.RESPAWN_ANCHOR, "&cDimension Locks",
+                "&7Nether: " + (netherLocked ? "&cLocked" : "&aOpen"),
+                "&7End: " + (endLocked ? "&cLocked" : "&aOpen"), "", "&eClick to manage"));
+
+        int crystalTicks = Math.max(0, plugin.getConfig().getInt("crystal-cooldown.ticks", 0));
+        inventory.setItem(12, item(Material.END_CRYSTAL, "&dCrystal Cooldown",
+                "&7Current: &e" + crystalTicks + " ticks", "", "&eClick to configure"));
+        inventory.setItem(14, item(Material.SHIELD, "&bAnti-Mods",
+                "&7Client detection, rules, bypass and logs.", "", "&eClick to manage"));
+        inventory.setItem(16, item(Material.HEAVY_CORE, "&6Trial Chamber Drops",
+                "&7Blocked items: &e" + plugin.getConfig().getStringList("trial-drops.disabled-items").size(),
+                "", "&eClick to manage"));
+        inventory.setItem(28, item(Material.CLOCK, "&aPerformance",
+                "&7Show TPS, MSPT, memory and chunks.", "", "&eClick to view"));
+        inventory.setItem(30, item(Material.LAVA_BUCKET, "&cLag Cleanup",
+                "&7Open entity cleanup controls.", "", "&eClick to manage"));
+        inventory.setItem(32, item(Material.WRITABLE_BOOK, "&eAdmin Audit Log",
+                "&7Commands and settings changes.", "", "&eClick to view"));
+        inventory.setItem(34, item(Material.COMMAND_BLOCK, "&fReload Configuration",
+                "&7Reload LowCore's config from disk.", "", "&eClick to reload"));
+        inventory.setItem(49, item(Material.BARRIER, "&cClose", "&7Close the control center."));
+        player.openInventory(inventory);
+    }
+
+    private void openCrystalGui(Player player) {
+        CoreGuiHolder holder = new CoreGuiHolder(CorePage.CRYSTAL, "§8Crystal Cooldown");
+        Inventory inventory = holder.inventory;
+        fill(inventory);
+        int[] values = {0, 1, 2, 5, 10, 20, 40};
+        int[] slots = {10, 11, 12, 13, 14, 15, 16};
+        int current = Math.max(0, plugin.getConfig().getInt("crystal-cooldown.ticks", 0));
+        for (int index = 0; index < values.length; index++) {
+            int ticks = values[index];
+            holder.crystalTicksBySlot.put(slots[index], ticks);
+            inventory.setItem(slots[index], item(ticks == 0 ? Material.BARRIER : Material.CLOCK,
+                    (current == ticks ? "&a" : "&e") + (ticks == 0 ? "Disabled" : ticks + " ticks"),
+                    ticks == 0 ? "&7Disable placement cooldown." : "&7Approximately " + formatSeconds(ticks) + " seconds.",
+                    current == ticks ? "&aCurrently selected" : "&eClick to apply"));
+        }
+        inventory.setItem(22, item(Material.ARROW, "&eBack", "&7Return to the control center."));
+        player.openInventory(inventory);
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof CoreGuiHolder holder)) return;
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) return;
+        int slot = event.getSlot();
+        if (holder.page == CorePage.CRYSTAL) {
+            if (slot == 22) openMainGui(player);
+            else if (holder.crystalTicksBySlot.containsKey(slot)) {
+                player.performCommand("crystal-cooldown " + holder.crystalTicksBySlot.get(slot));
+                openCrystalGui(player);
+            }
+            return;
+        }
+
+        switch (slot) {
+            case 10 -> player.performCommand("lock-dimension");
+            case 12 -> openCrystalGui(player);
+            case 14 -> player.performCommand("anti-mods");
+            case 16 -> player.performCommand("trial-drops");
+            case 28 -> {
+                player.closeInventory();
+                player.performCommand("performance");
+            }
+            case 30 -> player.performCommand("cleanup");
+            case 32 -> player.performCommand("log");
+            case 34 -> {
+                player.closeInventory();
+                player.performCommand("lowcore reload");
+            }
+            case 49 -> player.closeInventory();
+            default -> { }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof CoreGuiHolder) event.setCancelled(true);
+    }
+
+    private String formatSeconds(int ticks) {
+        return ticks % 20 == 0 ? Integer.toString(ticks / 20) : String.format(java.util.Locale.ROOT, "%.2f", ticks / 20.0);
+    }
+
+    private ItemStack item(Material material, String name, String... lore) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
+        List<String> colored = new ArrayList<>();
+        for (String line : lore) colored.add(ChatColor.translateAlternateColorCodes('&', line));
+        meta.setLore(colored);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void fill(Inventory inventory) {
+        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, filler);
+    }
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender,
                                                 @NotNull Command command,
@@ -304,5 +435,23 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter {
             }
         }
         return result;
+    }
+
+    private enum CorePage { MAIN, CRYSTAL }
+
+    private static final class CoreGuiHolder implements InventoryHolder {
+        private final CorePage page;
+        private final Map<Integer, Integer> crystalTicksBySlot = new HashMap<>();
+        private final Inventory inventory;
+
+        private CoreGuiHolder(CorePage page, String title) {
+            this.page = page;
+            this.inventory = Bukkit.createInventory(this, 54, title);
+        }
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
     }
 }

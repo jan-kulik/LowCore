@@ -25,8 +25,10 @@ and multiple clean, well-structured systems.
 - **Logout Tracking System** — Stores player logout positions using SQLite
 - **Dimension Locks** — Lock the Nether or End, including portal creation and travel
 - **Timed Dimension Locks** — Automatically unlock dimensions after durations such as `30m`, `2h`, or `1d12h`
-- **Anti-Freecam** — Loading-screen checks for Freecam and Meteor Client, Geyser-safe with persistent GUI logs
+- **Anti-Mods** — Loading-screen checks for Freecam, Meteor, Wurst, LiquidBounce and ThunderHack, with per-client rules
 - **Crystal Cooldown** — Configure a tick-accurate End Crystal placement delay per player
+- **Control Center** — Configure all major LowCore systems from one `/lowcore` GUI
+- **Admin Audit Log** — Persistent, paginated history for commands and GUI setting changes
 
 ---
 
@@ -34,14 +36,15 @@ and multiple clean, well-structured systems.
 
 | Command        | Description                       | Permission                             |
 |----------------|-----------------------------------|----------------------------------------|
-| `/lowcore`     | Plugin info, reload, debug tools  | `lowcore.command`                      |
+| `/lowcore`     | Open the central settings GUI     | `lowcore.command`                      |
 | `/lowcore dimension <nether\|end> <lock\|unlock\|status>` | Manage dimension locks | `lowcore.dimensions` |
 | `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
 | `/crystal-cooldown <ticks\|off\|status>` | Configure Crystal placement speed | `lowcore.crystal-cooldown` |
-| `/anti-freecam [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antifreecam.admin` |
-| `/anti-freecam punishment <notify\|kick\|ban>` | Select the action after a confirmed match | `lowcore.antifreecam.admin` |
-| `/anti-freecam check <player>` | Manually check an online player | `lowcore.antifreecam.admin` |
-| `/anti-freecam logs` | Open the persistent detection log GUI | `lowcore.antifreecam.admin` |
+| `/anti-mods [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antimods.admin` |
+| `/anti-mods punishment <notify\|kick\|ban>` | Select the action after a confirmed match | `lowcore.antimods.admin` |
+| `/anti-mods <allow\|block> <client>` | Configure each supported client separately | `lowcore.antimods.admin` |
+| `/anti-mods check <player>` | Manually check an online player | `lowcore.antimods.admin` |
+| `/anti-mods logs` | Open the persistent detection log GUI | `lowcore.antimods.admin` |
 | `/gm`          | Change gamemode                   | `lowcore.gm`                           |
 | `/fly`         | Toggle flight                     | `lowcore.fly`                          |
 | `/ec`          | Open own/others ender chest       | `lowcore.ec` / `lowcore.ec.others`     |
@@ -96,25 +99,31 @@ already inside a locked dimension can always leave it.
 The cooldown is tracked separately for every player. `20` ticks are approximately
 one second. Players with `lowcore.crystal-cooldown.bypass` are not limited.
 
-## 🕵️ Anti-Freecam
+## 🕵️ Anti-Mods
 
-Run `/anti-freecam` to open the settings GUI. The feature is disabled by
-default. It probes the Freecam keys `key.freecam.toggle` and
-`freecam.config.gui.title`, plus Meteor Client's
-`key.meteor-client.open-gui`, through Paper's virtual-sign API. Confirmed
-matches can notify staff, kick, or permanently ban. A second probe is enabled
-by default, and blocked or timed-out responses never cause punishment. Automatic
-checks start during the terrain-loading screen and retry once if the client's
-initial chunk packets swallow the first probe. The temporary client-side sign
-is replaced with the real block immediately and its editor is closed after one tick, so
-the check does not leave or visibly flash a sign during normal gameplay.
+Run `/anti-mods` to open the settings GUI. The feature is disabled by default.
+It checks client translation/keybind resources for Freecam, Meteor Client,
+Wurst Client, LiquidBounce and ThunderHack through Paper's virtual-sign API.
+Each client can be allowed or blocked independently. Allowed matches are only
+logged; blocked matches use the selected notify, kick, or ban action. A second
+probe is enabled by default, and protected, failed or timed-out responses never
+cause punishment. Automatic checks start during the terrain-loading screen and
+retry once if the client's initial packets swallow the first probe. The virtual
+sign is restored immediately and its editor is closed after one tick.
 
-The check detects matching client translations, not whether Freecam was
-actively used. Players with `lowcore.antifreecam.bypass` are skipped; staff
-with `lowcore.antifreecam.alerts` receive results. Players connected through
-Geyser or Floodgate are detected through their APIs and skipped completely.
-Results are stored in SQLite and can be viewed through the GUI or with
-`/anti-freecam logs`.
+The check detects exposed client resources, not whether a cheat was actively
+used, and cannot detect every modified or disguised client. OP bypass can be
+toggled, and a custom bypass permission can be entered with
+`/anti-mods bypass-permission <permission|off>`. Staff with
+`lowcore.antimods.alerts` receive results. Players connected through Geyser or
+Floodgate are skipped completely. Results are stored in SQLite; the GUI can
+limit retained pages and clear them.
+
+## 🧾 Admin Audit Log
+
+`/log` opens a persistent, paginated audit GUI containing LowCore commands and
+important GUI setting changes. The log can be cleared through a confirmation
+screen. Its retention limit is configured at `audit-log.max-entries`.
 
 ---
 
@@ -129,7 +138,8 @@ LowCore provides a clean and fully documented `config.yml` including:
 - Performance monitor settings
 - Debug settings
 - Nether and End access locks (`dimensions.nether-locked` / `dimensions.end-locked`)
-- Freecam/Meteor detection and punishment (`anti-freecam.*`)
+- Per-client Anti-Mod detection, punishment, bypass and log retention (`anti-mods.*`)
+- Persistent admin audit retention (`audit-log.max-entries`)
 
 
 ---

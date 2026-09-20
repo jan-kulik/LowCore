@@ -20,25 +20,24 @@ commands:
     description: Lock the Nether or End permanently or for a set duration
     usage: /lock-dimension <nether|end> [duration|lock|unlock|status]
     permission: lowcore.dimensions
-    aliases: [lockdimension, dimensionlock]
 
   crystal-cooldown:
     description: Configure the per-player End Crystal placement cooldown
     usage: /crystal-cooldown <ticks|off|status>
     permission: lowcore.crystal-cooldown
-    aliases: [crystalcd, ccd]
+    aliases: [ccd]
 
-  anti-freecam:
-    description: Configure Freecam and Meteor client detection
-    usage: /anti-freecam [on|off|status|punishment|check|logs]
-    permission: lowcore.antifreecam.admin
-    aliases: [antifreecam, afc]
+  anti-mods:
+    description: Configure translation-key based client mod detection
+    usage: /anti-mods [on|off|toggle|status|punishment|check|logs|allow|block|bypass-permission]
+    permission: lowcore.antimods.admin
+    aliases: [am]
 
   trial-drops:
     description: Secret Trial Chamber drop controls
     usage: /trial-drops [on|off|status|enable|disable|toggle]
     permission: lowcore.trial-drops.admin
-    aliases: [trialdrops, vaultdrops]
+    aliases: [vaultdrops]
 
   fly:
     description: Toggles flight
@@ -203,20 +202,24 @@ permissions:
     description: Bypass the End Crystal placement cooldown
     default: false
 
-  lowcore.antifreecam.admin:
-    description: Configure anti-freecam and manually check players
+  lowcore.antimods.admin:
+    description: Configure Anti-Mods and manually check players
     default: op
 
-  lowcore.antifreecam.alerts:
-    description: Receive anti-freecam detection alerts
+  lowcore.antimods.alerts:
+    description: Receive Anti-Mod detection alerts
     default: op
 
-  lowcore.antifreecam.bypass:
-    description: Skip automatic and manual anti-freecam probes
+  lowcore.antimods.bypass:
+    description: Skip automatic and manual Anti-Mod probes
     default: false
 
   lowcore.trial-drops.admin:
     description: Configure secret Trial Chamber loot filters
+    default: op
+
+  lowcore.log:
+    description: View and clear the persistent admin audit log
     default: op
 
   lowcore.fly:

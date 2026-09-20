@@ -6,7 +6,7 @@
 
     <groupId>dev.jalikdev</groupId>
     <artifactId>lowcore</artifactId>
-    <version>2.7.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
 
     <name>lowcore</name>
@@ -62,7 +62,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>26.2.build.124-stable</version>
+            <version>26.2.build.126-stable</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

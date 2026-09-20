@@ -399,7 +399,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
         boolean perfMon = plugin.getConfig().getBoolean("performance-monitor.enabled", true);
         boolean lagCleanup = plugin.getConfig().getBoolean("lag-cleanup.enabled", true);
         boolean lastLogout = plugin.getConfig().getBoolean("lastlogout.enabled", true);
-        boolean antiFreecam = plugin.getConfig().getBoolean("anti-freecam.enabled", false);
+        boolean antiMods = plugin.getConfig().getBoolean("anti-mods.enabled", false);
 
         LowCore.sendMessage(sender, "&7=== LowCore System Status ===");
         LowCore.sendMessage(sender, "&7Join/Quit Messages: " + (jq ? "&aENABLED" : "&cDISABLED"));
@@ -409,7 +409,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
         LowCore.sendMessage(sender, "&7Performance Monitor: " + (perfMon ? "&aENABLED" : "&cDISABLED"));
         LowCore.sendMessage(sender, "&7Lag Cleanup: " + (lagCleanup ? "&aENABLED" : "&cDISABLED"));
         LowCore.sendMessage(sender, "&7LastLogout: " + (lastLogout ? "&aENABLED" : "&cDISABLED"));
-        LowCore.sendMessage(sender, "&7Anti-Freecam: " + (antiFreecam ? "&aENABLED" : "&cDISABLED"));
+        LowCore.sendMessage(sender, "&7Anti-Mods: " + (antiMods ? "&aENABLED" : "&cDISABLED"));
         return true;
     }
 

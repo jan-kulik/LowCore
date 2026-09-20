@@ -110,12 +110,13 @@ crystal-cooldown:
     wait: "&cWait another &e%ticks% tick(s) &cbefore placing another Crystal."
 
 # ======================
-# Anti-Freecam / Meteor Detection
+# Anti-Mod Detection
 # ======================
 # Uses Paper's virtual sign API and client-side translation/keybind resolution.
-# This detects known client translations, not whether Freecam was actively used.
+# This detects known client resources, not whether a cheat was actively used.
 # Failed, blocked or timed-out probes never trigger punishment.
-anti-freecam:
+anti-mods:
+  migrated: true
   enabled: false
   punishment: "kick" # notify, kick or ban
   # Start shortly after login, while the player is normally still loading terrain.
@@ -129,31 +130,55 @@ anti-freecam:
   confirmation-delay-ticks: 2
   timeout-ticks: 40
   double-check: true
-  log-max-entries: 5000
+  clients:
+    freecam:
+      blocked: true
+    meteor:
+      blocked: true
+    wurst:
+      blocked: true
+    liquidbounce:
+      blocked: true
+    thunderhack:
+      blocked: true
+  bypass:
+    ops: true
+    permission: "lowcore.antimods.bypass"
+  logs:
+    # 36 entries are stored per page. Options in the GUI: 1, 3, 5, 10 or 20.
+    max-pages: 5
   # Fallback for proxy setups where the Geyser/Floodgate API is unavailable.
   bedrock-name-prefixes:
     - "."
     - "*"
   messages:
-    usage: "&7Usage: &e/anti-freecam [gui|on|off|toggle|status|punishment <notify|kick|ban>|check <player>|logs]"
-    enabled: "&aAnti-Freecam detection enabled. Joining players will be checked."
-    disabled: "&eAnti-Freecam detection disabled."
-    status: "&7Anti-Freecam: %status%&7, punishment: &e%punishment%&7."
-    punishment-usage: "&7Usage: &e/anti-freecam punishment <notify|kick|ban>"
-    punishment-updated: "&aAnti-Freecam punishment set to &e%punishment%&a."
-    check-usage: "&7Usage: &e/anti-freecam check <player>"
-    check-started: "&7Started a Freecam/Meteor check for &e%player%&7."
+    usage: "&7Usage: &e/anti-mods [gui|on|off|status|punishment|check|logs|allow|block|bypass-permission]"
+    enabled: "&aAnti-Mod detection enabled. Joining players will be checked."
+    disabled: "&eAnti-Mod detection disabled."
+    status: "&7Anti-Mods: %status%&7, punishment: &e%punishment%&7."
+    punishment-usage: "&7Usage: &e/anti-mods punishment <notify|kick|ban>"
+    punishment-updated: "&aAnti-Mod punishment set to &e%punishment%&a."
+    client-usage: "&7Usage: &e/anti-mods <allow|block> <client>"
+    unknown-client: "&cUnknown Anti-Mod client: &e%client%"
+    client-blocked: "&c%client% &7is now blocked."
+    client-allowed: "&a%client% &7is now allowed and will only be logged."
+    bypass-permission-usage: "&7Usage: &e/anti-mods bypass-permission <permission|off>"
+    bypass-permission-updated: "&aAnti-Mod bypass permission set to &e%permission%&a."
+    check-usage: "&7Usage: &e/anti-mods check <player>"
+    check-started: "&7Started an Anti-Mod check for &e%player%&7."
     already-running: "&e%player% &7is already being checked."
-    bypassed: "&e%player% &7has the anti-freecam bypass permission."
+    bypassed: "&e%player% &7has an Anti-Mod bypass."
     bedrock-skipped: "&e%player% &7is connected through Geyser/Floodgate and was not checked."
-    failed: "&cThe check for &e%player% &ccould not be started."
+    failed: "&cThe Anti-Mod check for &e%player% &ccould not be started."
     confirming: "&e%player% &7matched &e%mods%&7. Running confirmation check..."
-    clean: "&aNo Freecam or Meteor translation keys detected for &e%player%&a."
+    clean: "&aNo configured mod signatures detected for &e%player%&a."
+    allowed-detected: "&aAllowed client &e%mods% &adetected for &e%player%&a; no punishment applied."
     protected: "&e%player% returned a protected/filtered sign response. No punishment was applied."
     timeout: "&eThe check for %player% timed out. No punishment was applied."
     inconclusive: "&eThe confirmation check for %player% was inconclusive. No punishment was applied."
     detected: "&cDetected &e%mods% &con &e%player%&c."
     kick-reason: "&cDisallowed client modification detected: &e%mods%"
+    logs-cleared: "&aDeleted &e%count% &aAnti-Mod log entries."
 
 # ======================
 # Secret Trial Chamber Drops
@@ -173,6 +198,12 @@ trial-drops:
     invalid-item: "&cUnknown or invalid item: &e%item%"
     item-blocked: "&c%item% &7will no longer drop inside Trial Chambers."
     item-allowed: "&a%item% &7can drop inside Trial Chambers again."
+
+# ======================
+# Admin Audit Log
+# ======================
+audit-log:
+  max-entries: 5000
 
 # ======================
 # Base Command

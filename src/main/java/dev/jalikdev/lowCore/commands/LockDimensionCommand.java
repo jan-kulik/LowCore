@@ -217,6 +217,7 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
         Dimension dimension = holder.dimension();
         if (slot == 20) {
             lockManager.lock(dimension, 0L);
+            plugin.audit(player, "Permanently locked " + dimension.displayName());
             LowCore.sendConfigMessage(player, "dimensions.locked-permanent",
                     "dimension", dimension.displayName());
             openSettingsGui(player, dimension);
@@ -224,11 +225,13 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
             openMainGui(player);
         } else if (slot == 24) {
             lockManager.unlock(dimension);
+            plugin.audit(player, "Unlocked " + dimension.displayName());
             LowCore.sendConfigMessage(player, "dimensions.unlocked", "dimension", dimension.displayName());
             openSettingsGui(player, dimension);
         } else if (holder.durationBySlot().containsKey(slot)) {
             long duration = holder.durationBySlot().get(slot);
             lockManager.lock(dimension, duration);
+            plugin.audit(player, "Locked " + dimension.displayName() + " for " + DurationUtil.formatMillis(duration));
             LowCore.sendConfigMessage(player, "dimensions.locked-timed",
                     "dimension", dimension.displayName(), "duration", DurationUtil.formatMillis(duration));
             openSettingsGui(player, dimension);

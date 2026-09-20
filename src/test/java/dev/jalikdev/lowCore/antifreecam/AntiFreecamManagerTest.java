@@ -1,63 +1,56 @@
 package dev.jalikdev.lowCore.antifreecam;
 
+import dev.jalikdev.lowCore.antifreecam.AntiModClient.ProbeSignature;
+import dev.jalikdev.lowCore.antifreecam.AntiModClient.SignatureType;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AntiFreecamManagerTest {
-
-    private static final String FREECAM_FALLBACK = "LCAFtest";
-    private static final String METEOR_FALLBACK = "LCAMtest";
+    private static final List<ProbeSignature> BATCH = List.of(
+            new ProbeSignature(AntiModClient.FREECAM, "key.freecam.toggle", SignatureType.KEYBIND),
+            new ProbeSignature(AntiModClient.METEOR, "key.meteor-client.open-gui", SignatureType.TRANSLATABLE_RAW_SIGNAL),
+            new ProbeSignature(AntiModClient.WURST, "description.wurst.hack.clickgui", SignatureType.TRANSLATABLE)
+    );
+    private static final List<String> FALLBACKS = List.of("fallback-a", "fallback-b", "fallback-c");
 
     @Test
     void vanillaFallbacksAreClean() {
         var result = AntiFreecamManager.evaluateResponses(new String[]{
-                AntiFreecamManager.FREECAM_KEY,
-                FREECAM_FALLBACK,
-                METEOR_FALLBACK,
-                "W"
-        }, FREECAM_FALLBACK, METEOR_FALLBACK);
-
-        assertTrue(result.detectedMods().isEmpty());
+                "key.freecam.toggle", "fallback-b", "fallback-c", "W"
+        }, BATCH, FALLBACKS);
+        assertTrue(result.detectedClients().isEmpty());
         assertFalse(result.protectedResponse());
     }
 
     @Test
-    void freecamKeybindAndTranslationAreDetected() {
+    void multipleClientsCanBeDetectedInOneProbe() {
         var result = AntiFreecamManager.evaluateResponses(new String[]{
-                "F4",
-                "Freecam Options",
-                METEOR_FALLBACK,
-                "W"
-        }, FREECAM_FALLBACK, METEOR_FALLBACK);
-
-        assertEquals(java.util.Set.of("Freecam"), result.detectedMods());
+                "F4", "Open GUI", "Window-based ClickGUI.", "W"
+        }, BATCH, FALLBACKS);
+        assertEquals(Set.of(AntiModClient.FREECAM, AntiModClient.METEOR, AntiModClient.WURST),
+                result.detectedClients());
     }
 
     @Test
-    void meteorRawKeyIsDetected() {
+    void meteorRawKeyIsDetectedButOtherRawKeysAreFailOpen() {
         var result = AntiFreecamManager.evaluateResponses(new String[]{
-                AntiFreecamManager.FREECAM_KEY,
-                FREECAM_FALLBACK,
-                AntiFreecamManager.METEOR_KEY,
-                "W"
-        }, FREECAM_FALLBACK, METEOR_FALLBACK);
-
-        assertEquals(java.util.Set.of("Meteor Client"), result.detectedMods());
+                "key.freecam.toggle", "key.meteor-client.open-gui", "description.wurst.hack.clickgui", "W"
+        }, BATCH, FALLBACKS);
+        assertEquals(Set.of(AntiModClient.METEOR), result.detectedClients());
     }
 
     @Test
     void filteredControlResponseNeverPunishes() {
         var result = AntiFreecamManager.evaluateResponses(new String[]{
-                "F4",
-                "Freecam Options",
-                AntiFreecamManager.METEOR_KEY,
-                AntiFreecamManager.CONTROL_KEY
-        }, FREECAM_FALLBACK, METEOR_FALLBACK);
-
+                "F4", "Open GUI", "Window-based ClickGUI.", AntiFreecamManager.CONTROL_KEY
+        }, BATCH, FALLBACKS);
         assertTrue(result.protectedResponse());
-        assertTrue(result.detectedMods().isEmpty());
+        assertTrue(result.detectedClients().isEmpty());
     }
 }

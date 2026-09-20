@@ -3,6 +3,7 @@ package dev.jalikdev.lowCore.trialdrops;
 import dev.jalikdev.lowCore.LowCore;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.command.CommandSender;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -114,6 +115,10 @@ public final class TrialDropManager implements Listener {
                 .sorted(Comparator.comparing(Material::name))
                 .forEach(materials::add);
         return List.copyOf(materials);
+    }
+
+    public void audit(CommandSender actor, String action) {
+        plugin.audit(actor, action);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
