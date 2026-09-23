@@ -68,8 +68,8 @@ public final class AdminAuditLogRepository {
     }
 
     public void trimTo(int maximumEntries) {
-        String sql = "DELETE FROM audit_logs WHERE id NOT IN (SELECT id FROM audit_logs " +
-                "ORDER BY created_at DESC, id DESC LIMIT ?)";
+        String sql = "DELETE FROM audit_logs WHERE id IN (SELECT id FROM audit_logs " +
+                "ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)";
         try (PreparedStatement statement = connection().prepareStatement(sql)) {
             statement.setInt(1, Math.max(100, maximumEntries));
             statement.executeUpdate();

@@ -5,7 +5,6 @@ import dev.jalikdev.lowCore.LowCore;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
-/** Optional Geyser/Floodgate integration without making either plugin required. */
 public final class BedrockPlayerDetector {
 
     private final LowCore plugin;

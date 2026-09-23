@@ -61,7 +61,6 @@ public enum AntiModClient {
     public enum SignatureType {
         KEYBIND,
         TRANSLATABLE,
-        /** Vanilla uses the supplied fallback; this client's protection is also identifiable by echoing the raw key. */
         TRANSLATABLE_RAW_SIGNAL
     }
 

@@ -4,10 +4,8 @@ import dev.jalikdev.lowCore.LowCore;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.UUID;
@@ -33,9 +31,9 @@ public class WorldInventoryManager {
             plugin.getConfig().set(basePath + ".armor", armorData);
             plugin.getConfig().set(basePath + ".enderchest", ecData);
             plugin.saveConfig();
-        } catch (Exception e) {
-            plugin.getLogger().severe("Failed to save inventory for " + player.getName() + " in group " + groupKey);
-            e.printStackTrace();
+        } catch (IOException exception) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Failed to save inventory for " + player.getName() + " in group " + groupKey, exception);
         }
     }
 
@@ -43,9 +41,9 @@ public class WorldInventoryManager {
         UUID uuid = player.getUniqueId();
         String basePath = "world.inventories." + uuid + "." + groupKey;
 
-        String invData = plugin.getConfig().getString(basePath + ".inventory", null);
-        String armorData = plugin.getConfig().getString(basePath + ".armor", null);
-        String ecData = plugin.getConfig().getString(basePath + ".enderchest", null);
+        String invData = plugin.getConfig().getString(basePath + ".inventory");
+        String armorData = plugin.getConfig().getString(basePath + ".armor");
+        String ecData = plugin.getConfig().getString(basePath + ".enderchest");
 
         if (invData == null || armorData == null || ecData == null) {
             player.getInventory().clear();
@@ -55,42 +53,40 @@ public class WorldInventoryManager {
         }
 
         try {
-            ItemStack[] inv = itemStackArrayFromBase64(invData);
-            ItemStack[] armor = itemStackArrayFromBase64(armorData);
-            ItemStack[] ec = itemStackArrayFromBase64(ecData);
-
-            player.getInventory().setContents(inv);
-            player.getInventory().setArmorContents(armor);
-            player.getEnderChest().setContents(ec);
-        } catch (Exception e) {
-            plugin.getLogger().severe("Failed to load inventory for " + player.getName() + " in group " + groupKey);
-            e.printStackTrace();
+            player.getInventory().setContents(itemStackArrayFromBase64(invData));
+            player.getInventory().setArmorContents(itemStackArrayFromBase64(armorData));
+            player.getEnderChest().setContents(itemStackArrayFromBase64(ecData));
+        } catch (IOException | ClassNotFoundException | IllegalArgumentException exception) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Failed to load inventory for " + player.getName() + " in group " + groupKey, exception);
         }
     }
 
     private String itemStackArrayToBase64(ItemStack[] items) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
-
-        dataOutput.writeInt(items.length);
-        for (ItemStack item : items) {
-            dataOutput.writeObject(item);
-        }
-        dataOutput.close();
-
-        return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        return Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(items));
     }
 
     private ItemStack[] itemStackArrayFromBase64(String data) throws IOException, ClassNotFoundException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(data));
-        BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
-        int length = dataInput.readInt();
-        ItemStack[] items = new ItemStack[length];
-
-        for (int i = 0; i < length; i++) {
-            items[i] = (ItemStack) dataInput.readObject();
+        if (data.length() > 8 * 1024 * 1024) throw new IOException("Serialized inventory exceeds size limit");
+        byte[] serialized = Base64.getDecoder().decode(data);
+        try {
+            ItemStack[] items = ItemStack.deserializeItemsFromBytes(serialized);
+            if (items.length > 256) throw new IOException("Invalid serialized inventory length: " + items.length);
+            return items;
+        } catch (IllegalArgumentException exception) {
+            return deserializeLegacyItems(serialized);
         }
-        dataInput.close();
-        return items;
+    }
+
+    @SuppressWarnings("deprecation")
+    private ItemStack[] deserializeLegacyItems(byte[] serialized) throws IOException, ClassNotFoundException {
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(serialized);
+             BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
+            int length = dataInput.readInt();
+            if (length < 0 || length > 256) throw new IOException("Invalid serialized inventory length: " + length);
+            ItemStack[] items = new ItemStack[length];
+            for (int i = 0; i < length; i++) items[i] = (ItemStack) dataInput.readObject();
+            return items;
+        }
     }
 }

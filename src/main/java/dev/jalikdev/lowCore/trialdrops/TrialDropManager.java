@@ -58,22 +58,26 @@ public final class TrialDropManager implements Listener {
     );
 
     private final LowCore plugin;
+    private boolean enabled;
+    private Set<Material> blockedMaterials = Set.of();
 
     public TrialDropManager(LowCore plugin) {
         this.plugin = plugin;
+        reload();
     }
 
     public boolean isEnabled() {
-        return plugin.getConfig().getBoolean("trial-drops.enabled", true);
+        return enabled;
     }
 
     public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
         plugin.getConfig().set("trial-drops.enabled", enabled);
         plugin.saveConfig();
     }
 
     public boolean isBlocked(Material material) {
-        return getBlockedMaterials().contains(material);
+        return blockedMaterials.contains(material);
     }
 
     public boolean setBlocked(Material material, boolean blocked) {
@@ -81,7 +85,7 @@ public final class TrialDropManager implements Listener {
             return false;
         }
 
-        Set<Material> materials = new LinkedHashSet<>(getBlockedMaterials());
+        Set<Material> materials = new LinkedHashSet<>(blockedMaterials);
         boolean changed = blocked ? materials.add(material) : materials.remove(material);
         if (!changed) {
             return false;
@@ -93,10 +97,16 @@ public final class TrialDropManager implements Listener {
                 .toList();
         plugin.getConfig().set("trial-drops.disabled-items", serialized);
         plugin.saveConfig();
+        blockedMaterials = Set.copyOf(materials);
         return true;
     }
 
     public Set<Material> getBlockedMaterials() {
+        return blockedMaterials;
+    }
+
+    public void reload() {
+        enabled = plugin.getConfig().getBoolean("trial-drops.enabled", true);
         Set<Material> materials = new LinkedHashSet<>();
         for (String configured : plugin.getConfig().getStringList("trial-drops.disabled-items")) {
             Material material = parseMaterial(configured);
@@ -106,12 +116,12 @@ public final class TrialDropManager implements Listener {
             }
             materials.add(material);
         }
-        return Set.copyOf(materials);
+        blockedMaterials = Set.copyOf(materials);
     }
 
     public List<Material> getGuiMaterials() {
         LinkedHashSet<Material> materials = new LinkedHashSet<>(GUI_MATERIALS);
-        getBlockedMaterials().stream()
+        blockedMaterials.stream()
                 .sorted(Comparator.comparing(Material::name))
                 .forEach(materials::add);
         return List.copyOf(materials);
@@ -128,9 +138,7 @@ public final class TrialDropManager implements Listener {
         }
 
         List<ItemStack> filtered = withoutBlockedItems(event.getLoot());
-        if (filtered.size() != event.getLoot().size()) {
-            event.setLoot(filtered);
-        }
+        if (filtered != null) event.setLoot(filtered);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -140,16 +148,12 @@ public final class TrialDropManager implements Listener {
         }
 
         List<ItemStack> filtered = withoutBlockedItems(event.getDispensedLoot());
-        if (filtered.size() != event.getDispensedLoot().size()) {
-            event.setDispensedLoot(filtered);
-        }
+        if (filtered != null) event.setDispensedLoot(filtered);
     }
 
     private List<ItemStack> withoutBlockedItems(Collection<ItemStack> loot) {
-        Set<Material> blocked = getBlockedMaterials();
-        if (blocked.isEmpty()) {
-            return new ArrayList<>(loot);
-        }
+        Set<Material> blocked = blockedMaterials;
+        if (blocked.isEmpty() || loot.stream().noneMatch(item -> isBlockedItem(item, blocked))) return null;
         return loot.stream()
                 .filter(item -> !isBlockedItem(item, blocked))
                 .toList();

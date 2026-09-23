@@ -135,10 +135,10 @@ public final class AntiFreecamLogRepository {
         int safeMaximum = Math.max(100, maximumEntries);
         String sql = """
                 DELETE FROM anti_freecam_logs
-                WHERE id NOT IN (
+                WHERE id IN (
                     SELECT id FROM anti_freecam_logs
                     ORDER BY checked_at DESC, id DESC
-                    LIMIT ?
+                    LIMIT -1 OFFSET ?
                 )
                 """;
         try (PreparedStatement statement = connection().prepareStatement(sql)) {

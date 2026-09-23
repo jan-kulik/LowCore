@@ -9,8 +9,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
@@ -21,9 +20,10 @@ import java.util.UUID;
 
 public class NightVisionCommand implements CommandExecutor, Listener {
 
-    private final JavaPlugin plugin;
+    private final LowCore plugin;
     private final Set<UUID> nightVision = new HashSet<>();
-    public NightVisionCommand(JavaPlugin plugin) {
+
+    public NightVisionCommand(LowCore plugin) {
         this.plugin = plugin;
     }
 
@@ -73,14 +73,8 @@ public class NightVisionCommand implements CommandExecutor, Listener {
         player.addPotionEffect(effect);
     }
 
-    //wegen tick delay bei pop und so
     private void applyNightVisionLater(Player player) {
         plugin.getServer().getScheduler().runTask(plugin, () -> applyNightVision(player));
-    }
-
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent e) {
-        applyNightVisionLater(e.getPlayer());
     }
 
     @EventHandler
@@ -109,4 +103,17 @@ public class NightVisionCommand implements CommandExecutor, Listener {
         applyNightVisionLater(p);
     }
 
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        if (nightVision.remove(player.getUniqueId())) player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+    }
+
+    public void shutdown() {
+        for (UUID playerId : nightVision) {
+            Player player = plugin.getServer().getPlayer(playerId);
+            if (player != null) player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+        }
+        nightVision.clear();
+    }
 }

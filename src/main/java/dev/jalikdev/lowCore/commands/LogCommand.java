@@ -38,10 +38,12 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
 
     private final LowCore plugin;
     private final AdminAuditLogRepository repository;
+    private int entriesUntilTrim = 100;
 
     public LogCommand(LowCore plugin, AdminAuditLogRepository repository) {
         this.plugin = plugin;
         this.repository = repository;
+        trimRepository();
     }
 
     public void logAction(CommandSender actor, String action) {
@@ -49,7 +51,16 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
         String actorName = actor == null ? "SYSTEM" : actor.getName();
         try {
             repository.save(actorId, actorName, action);
+            if (--entriesUntilTrim <= 0) trimRepository();
+        } catch (IllegalStateException exception) {
+            plugin.getLogger().warning(exception.getMessage());
+        }
+    }
+
+    private void trimRepository() {
+        try {
             repository.trimTo(plugin.getConfig().getInt("audit-log.max-entries", 5000));
+            entriesUntilTrim = 100;
         } catch (IllegalStateException exception) {
             plugin.getLogger().warning(exception.getMessage());
         }

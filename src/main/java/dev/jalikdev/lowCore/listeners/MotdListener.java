@@ -1,13 +1,15 @@
 package dev.jalikdev.lowCore.listeners;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerListPingEvent;
 import dev.jalikdev.lowCore.LowCore;
 
 public class MotdListener implements Listener {
+
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
 
     private final LowCore plugin;
 
@@ -24,7 +26,7 @@ public class MotdListener implements Listener {
         String line1 = plugin.getConfig().getString("motd.line-1", "&aLowCore &7Server");
         String line2 = plugin.getConfig().getString("motd.line-2", "&7Have fun!");
 
-        String version = plugin.getDescription().getVersion();
+        String version = plugin.getPluginMeta().getVersion();
         String online = String.valueOf(Bukkit.getOnlinePlayers().size());
         String max = String.valueOf(Bukkit.getMaxPlayers());
 
@@ -39,6 +41,6 @@ public class MotdListener implements Listener {
                 .replace("%max%", max);
 
         String motd = line1 + "\n" + line2;
-        event.setMotd(ChatColor.translateAlternateColorCodes('&', motd));
+        event.motd(LEGACY.deserialize(motd));
     }
 }

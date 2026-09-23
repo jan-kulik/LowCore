@@ -12,6 +12,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.TileState;
@@ -37,7 +38,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Translation-key based mod detection. All failures are deliberately fail-open. */
 public final class AntiFreecamManager implements Listener {
 
     public static final String CONTROL_KEY = "key.forward";
@@ -51,11 +51,13 @@ public final class AntiFreecamManager implements Listener {
     private final BedrockPlayerDetector bedrockDetector;
     private final Map<UUID, ProbeSession> active = new HashMap<>();
     private final Map<UUID, Long> lastManualCheckAt = new HashMap<>();
+    private int logsUntilTrim = 25;
 
     public AntiFreecamManager(LowCore plugin, AntiFreecamLogRepository logRepository) {
         this.plugin = plugin;
         this.logRepository = logRepository;
         this.bedrockDetector = new BedrockPlayerDetector(plugin);
+        trimLogs();
     }
 
     public boolean isEnabled() {
@@ -273,7 +275,7 @@ public final class AntiFreecamManager implements Listener {
                 }
             }
             lines.add(Component.keybind(CONTROL_KEY));
-            target.sendSignChange(signLocation, lines);
+            target.sendSignChange(signLocation, lines, DyeColor.BLACK, false);
             target.openVirtualSign(Position.block(signLocation), Side.FRONT);
             restoreClientBlock(target, signLocation);
             scheduleRepeatedRestore(target, signLocation);
@@ -387,8 +389,10 @@ public final class AntiFreecamManager implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        ProbeSession session = active.remove(event.getPlayer().getUniqueId());
+        UUID playerId = event.getPlayer().getUniqueId();
+        ProbeSession session = active.remove(playerId);
         if (session != null) finishTasks(session);
+        lastManualCheckAt.remove(playerId);
     }
 
     private void timeout(ProbeSession session) {
@@ -488,7 +492,7 @@ public final class AntiFreecamManager implements Listener {
         try {
             logRepository.save(player.getUniqueId(), player.getName(), result, joinClients(clients),
                     session.manual ? "manual" : "automatic", punishment, details);
-            trimLogs();
+            if (--logsUntilTrim <= 0) trimLogs();
         } catch (IllegalStateException exception) {
             plugin.getLogger().warning(exception.getMessage());
         }
@@ -497,6 +501,7 @@ public final class AntiFreecamManager implements Listener {
     private void trimLogs() {
         try {
             logRepository.trimTo(getLogPageSize() * getMaxLogPages());
+            logsUntilTrim = 25;
         } catch (IllegalStateException exception) {
             plugin.getLogger().warning(exception.getMessage());
         }
@@ -626,6 +631,7 @@ public final class AntiFreecamManager implements Listener {
             if (player != null) restoreClientBlock(player, session.location);
         }
         active.clear();
+        lastManualCheckAt.clear();
     }
 
     public enum Punishment {

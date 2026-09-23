@@ -2,6 +2,7 @@ package dev.jalikdev.lowCore.commands;
 
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.*;
@@ -11,6 +12,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -20,6 +22,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 
 public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
+
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final LowCore plugin;
     private final OfflineInventoryRepository offlineRepository;
@@ -32,7 +36,7 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
         this.offlineRepository = plugin.getOfflineInventoryRepository();
     }
 
-    private static class InvseeSession {
+    private static final class InvseeSession {
         UUID targetId;
         Inventory inv;
         int taskId;
@@ -40,32 +44,48 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
 
     private void syncToTarget(Inventory inv, Player target) {
         PlayerInventory tInv = target.getInventory();
+        boolean changed = false;
 
         for (int i = 0; i < 36; i++) {
-            tInv.setItem(i, inv.getItem(i));
+            ItemStack item = inv.getItem(i);
+            if (!Objects.equals(tInv.getItem(i), item)) {
+                tInv.setItem(i, item);
+                changed = true;
+            }
         }
 
-        tInv.setHelmet(inv.getItem(36));
-        tInv.setChestplate(inv.getItem(37));
-        tInv.setLeggings(inv.getItem(38));
-        tInv.setBoots(inv.getItem(39));
-        tInv.setItemInOffHand(inv.getItem(40));
+        changed |= setIfChanged(tInv.getHelmet(), inv.getItem(36), tInv::setHelmet);
+        changed |= setIfChanged(tInv.getChestplate(), inv.getItem(37), tInv::setChestplate);
+        changed |= setIfChanged(tInv.getLeggings(), inv.getItem(38), tInv::setLeggings);
+        changed |= setIfChanged(tInv.getBoots(), inv.getItem(39), tInv::setBoots);
+        changed |= setIfChanged(tInv.getItemInOffHand(), inv.getItem(40), tInv::setItemInOffHand);
 
-        target.updateInventory();
+        if (changed) target.updateInventory();
     }
 
     private void syncFromTarget(Player target, Inventory inv) {
         PlayerInventory tInv = target.getInventory();
 
         for (int i = 0; i < 36; i++) {
-            inv.setItem(i, tInv.getItem(i));
+            setInventoryItemIfChanged(inv, i, tInv.getItem(i));
         }
 
-        inv.setItem(36, tInv.getHelmet());
-        inv.setItem(37, tInv.getChestplate());
-        inv.setItem(38, tInv.getLeggings());
-        inv.setItem(39, tInv.getBoots());
-        inv.setItem(40, tInv.getItemInOffHand());
+        setInventoryItemIfChanged(inv, 36, tInv.getHelmet());
+        setInventoryItemIfChanged(inv, 37, tInv.getChestplate());
+        setInventoryItemIfChanged(inv, 38, tInv.getLeggings());
+        setInventoryItemIfChanged(inv, 39, tInv.getBoots());
+        setInventoryItemIfChanged(inv, 40, tInv.getItemInOffHand());
+    }
+
+    private boolean setIfChanged(ItemStack current, ItemStack replacement,
+                                 java.util.function.Consumer<ItemStack> setter) {
+        if (Objects.equals(current, replacement)) return false;
+        setter.accept(replacement);
+        return true;
+    }
+
+    private void setInventoryItemIfChanged(Inventory inventory, int slot, ItemStack item) {
+        if (!Objects.equals(inventory.getItem(slot), item)) inventory.setItem(slot, item);
     }
 
     private void stopSession(UUID viewerId) {
@@ -109,8 +129,9 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
             }
 
             String title = "§8InvSee §7- §a" + target.getName();
-            Inventory inv = Bukkit.createInventory(viewer, 45, title);
+            Inventory inv = Bukkit.createInventory(viewer, 45, LEGACY.deserialize(title));
 
+            stopSession(viewer.getUniqueId());
             syncFromTarget(target, inv);
 
             InvseeSession session = new InvseeSession();
@@ -166,7 +187,7 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
         }
 
         String title = "§8InvSee §7- §a" + offlineTarget.getName() + " §7(offline)";
-        Inventory inv = Bukkit.createInventory(viewer, 45, title);
+        Inventory inv = Bukkit.createInventory(viewer, 45, LEGACY.deserialize(title));
 
         for (int i = 0; i < data.length && i < inv.getSize(); i++) {
             inv.setItem(i, data[i]);
@@ -270,12 +291,30 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
 
         UUID offlineUuid = offlineViews.remove(top);
         if (offlineUuid != null) {
-            ItemStack[] data = new ItemStack[41];
-            for (int i = 0; i < 41 && i < top.getSize(); i++) {
-                data[i] = top.getItem(i);
-            }
-            offlineRepository.savePendingInventory(offlineUuid, data);
+            saveOfflineView(top, offlineUuid);
         }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        stopSession(event.getPlayer().getUniqueId());
+    }
+
+    public void shutdown() {
+        for (InvseeSession session : sessions.values()) {
+            if (session.taskId != -1) Bukkit.getScheduler().cancelTask(session.taskId);
+        }
+        sessions.clear();
+        for (Map.Entry<Inventory, UUID> entry : offlineViews.entrySet()) {
+            saveOfflineView(entry.getKey(), entry.getValue());
+        }
+        offlineViews.clear();
+    }
+
+    private void saveOfflineView(Inventory inventory, UUID playerId) {
+        ItemStack[] data = new ItemStack[41];
+        for (int i = 0; i < data.length && i < inventory.getSize(); i++) data[i] = inventory.getItem(i);
+        offlineRepository.savePendingInventory(playerId, data);
     }
 
     @Override

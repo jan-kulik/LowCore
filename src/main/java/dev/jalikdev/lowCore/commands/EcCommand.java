@@ -12,10 +12,14 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import net.kyori.adventure.text.Component;
-import dev.jalikdev.lowCore.utils.*;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import dev.jalikdev.lowCore.utils.CompletionUtil;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class EcCommand implements CommandExecutor, TabCompleter, Listener {
 
@@ -53,10 +57,7 @@ public class EcCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
-        if (!(sender instanceof Player viewer)) {
-            LowCore.sendConfigMessage(sender, "player-only");
-            return true;
-        }
+        Player viewer = player;
 
         String targetName = args[0];
 
@@ -82,7 +83,8 @@ public class EcCommand implements CommandExecutor, TabCompleter, Listener {
         Inventory inv = Bukkit.createInventory(
                 viewer,
                 27,
-                Component.text("&8EnderChest &7- &a" + offline.getName() + " &7(offline)")
+                LegacyComponentSerializer.legacyAmpersand().deserialize(
+                        "&8EnderChest &7- &a" + offline.getName() + " &7(offline)")
         );
 
         inv.setContents(data);
@@ -100,12 +102,22 @@ public class EcCommand implements CommandExecutor, TabCompleter, Listener {
         UUID uuid = offlineEcViews.remove(top);
         if (uuid == null) return;
 
-        ItemStack[] contents = new ItemStack[top.getSize()];
-        for (int i = 0; i < top.getSize(); i++) {
-            contents[i] = top.getItem(i);
-        }
+        saveOfflineView(top, uuid);
+    }
 
-        plugin.getOfflineInventoryRepository().savePendingEnderChest(uuid, contents);
+    public void shutdown() {
+        for (Map.Entry<Inventory, UUID> entry : offlineEcViews.entrySet()) {
+            saveOfflineView(entry.getKey(), entry.getValue());
+        }
+        offlineEcViews.clear();
+    }
+
+    private void saveOfflineView(Inventory inventory, UUID playerId) {
+        ItemStack[] contents = new ItemStack[inventory.getSize()];
+        for (int i = 0; i < inventory.getSize(); i++) {
+            contents[i] = inventory.getItem(i);
+        }
+        plugin.getOfflineInventoryRepository().savePendingEnderChest(playerId, contents);
     }
 
     @Override

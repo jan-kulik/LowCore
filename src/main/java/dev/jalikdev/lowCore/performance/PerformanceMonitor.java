@@ -5,6 +5,8 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import dev.jalikdev.lowCore.LowCore;
 
+import java.util.Locale;
+
 public class PerformanceMonitor {
 
     private final LowCore plugin;
@@ -43,6 +45,7 @@ public class PerformanceMonitor {
     }
 
     public void start() {
+        if (taskId != -1) return;
         if (!enabled) {
             plugin.getLogger().info("Performance monitor is disabled in config.");
             return;
@@ -74,10 +77,15 @@ public class PerformanceMonitor {
 
         long now = System.currentTimeMillis();
 
-        if (currentTps < severeThreshold && now - lastSevereMillis > cooldownMillis) {
-            lastSevereMillis = now;
-            notifyOps("&cSevere lag! &7Current TPS: &c" + formatTps(currentTps));
-        } else if (currentTps < warnThreshold && now - lastWarnMillis > cooldownMillis) {
+        if (currentTps < severeThreshold) {
+            if (now - lastSevereMillis > cooldownMillis) {
+                lastSevereMillis = now;
+                notifyOps("&cSevere lag! &7Current TPS: &c" + formatTps(currentTps));
+            }
+            return;
+        }
+
+        if (currentTps < warnThreshold && now - lastWarnMillis > cooldownMillis) {
             lastWarnMillis = now;
             notifyOps("&eServer performance warning! &7Current TPS: &e" + formatTps(currentTps));
         }
@@ -89,12 +97,13 @@ public class PerformanceMonitor {
             return tps[0];
         } catch (NoSuchMethodError error) {
             plugin.getLogger().warning("Server TPS API not available. Performance monitor disabled for TPS.");
+            stop();
             return -1;
         }
     }
 
     private String formatTps(double tps) {
-        return String.format("%.2f", tps);
+        return String.format(Locale.ROOT, "%.2f", tps);
     }
 
     private void notifyOps(String rawMessage) {

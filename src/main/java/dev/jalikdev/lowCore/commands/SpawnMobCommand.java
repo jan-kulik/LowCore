@@ -28,29 +28,25 @@ public class SpawnMobCommand implements CommandExecutor, TabCompleter {
     private @Nullable Location getSpawnLocation(Player player, int maxDistance) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection().normalize();
-
-        Location lastAir = null;
+        Location check = eye.clone();
+        boolean foundAir = false;
 
         for (int i = 1; i <= maxDistance; i++) {
-            Location check = eye.clone().add(direction.clone().multiply(i));
+            check.add(direction);
             Block block = check.getBlock();
 
             if (block.getType().isSolid()) {
-                if (lastAir == null) {
-                    return null;
-                }
-
-                Location spawn = lastAir.clone();
+                if (!foundAir) return null;
+                Location spawn = check.clone().subtract(direction);
                 spawn.setYaw(player.getLocation().getYaw());
                 spawn.setPitch(0);
                 return spawn;
-            } else {
-                lastAir = check.clone();
             }
+            foundAir = true;
         }
 
-        if (lastAir != null) {
-            Location spawn = lastAir.clone();
+        if (foundAir) {
+            Location spawn = check.clone();
             spawn.setYaw(player.getLocation().getYaw());
             spawn.setPitch(0);
             return spawn;
@@ -95,8 +91,8 @@ public class SpawnMobCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        int maxAmount = plugin.getConfig().getInt("spawnmob.max-amount", 50);
-        int maxDistance = plugin.getConfig().getInt("spawnmob.max-distance", 30);
+        int maxAmount = Math.max(1, Math.min(1000, plugin.getConfig().getInt("spawnmob.max-amount", 50)));
+        int maxDistance = Math.max(1, Math.min(100, plugin.getConfig().getInt("spawnmob.max-distance", 30)));
 
         int amount = 1;
         if (args.length >= 2) {
@@ -119,11 +115,9 @@ public class SpawnMobCommand implements CommandExecutor, TabCompleter {
         String restrictedPermission = plugin.getConfig().getString("spawnmob.restricted-permission", "lowcore.spawnmob.restricted");
 
         Set<String> restricted = new HashSet<>();
-        for (String s : restrictedList) {
-            restricted.add(s.toUpperCase(Locale.ROOT));
-        }
+        for (String s : restrictedList) restricted.add(s.toUpperCase(Locale.ROOT));
 
-        if (restricted.contains(type.name().toUpperCase(Locale.ROOT))) {
+        if (restricted.contains(type.name())) {
             if (!player.hasPermission(restrictedPermission)) {
                 LowCore.sendConfigMessage(player, "spawnmob.restricted", "type", type.name().toLowerCase(Locale.ROOT));
                 return true;
@@ -172,9 +166,7 @@ public class SpawnMobCommand implements CommandExecutor, TabCompleter {
         String restrictedPermission = plugin.getConfig().getString("spawnmob.restricted-permission", "lowcore.spawnmob.restricted");
 
         Set<String> restricted = new HashSet<>();
-        for (String s : restrictedList) {
-            restricted.add(s.toUpperCase(Locale.ROOT));
-        }
+        for (String s : restrictedList) restricted.add(s.toUpperCase(Locale.ROOT));
 
         if (args.length == 1) {
             String input = args[0].toLowerCase(Locale.ROOT);
@@ -184,7 +176,7 @@ public class SpawnMobCommand implements CommandExecutor, TabCompleter {
                 if (!type.isAlive() || !type.isSpawnable()) continue;
 
                 if (!sender.hasPermission(restrictedPermission)
-                        && restricted.contains(type.name().toUpperCase(Locale.ROOT))) {
+                        && restricted.contains(type.name())) {
                     continue;
                 }
 

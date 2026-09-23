@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.logging.Level;
 
 public class DatabaseManager {
 
@@ -18,15 +19,25 @@ public class DatabaseManager {
     }
 
     public void connect() throws SQLException {
-        if (!plugin.getDataFolder().exists()) {
-            plugin.getDataFolder().mkdirs();
+        if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
+            throw new SQLException("Could not create plugin data directory");
         }
 
         File dbFile = new File(plugin.getDataFolder(), "data.db");
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
 
         connection = DriverManager.getConnection(url);
+        configureConnection();
         createTables();
+    }
+
+    private void configureConnection() throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA journal_mode = WAL");
+            statement.execute("PRAGMA synchronous = NORMAL");
+            statement.execute("PRAGMA busy_timeout = 5000");
+            statement.execute("PRAGMA foreign_keys = ON");
+        }
     }
 
     private void createTables() throws SQLException {
@@ -42,10 +53,6 @@ public class DatabaseManager {
                 "last_seen TIMESTAMP" +
                 ");";
 
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sqlLastLocations);
-        }
-
         String sqlOfflineInv = "CREATE TABLE IF NOT EXISTS offline_inventories (" +
                 "uuid TEXT PRIMARY KEY," +
                 "inv_snapshot TEXT," +
@@ -54,10 +61,6 @@ public class DatabaseManager {
                 "ec_pending TEXT," +
                 "updated_at INTEGER" +
                 ");";
-
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sqlOfflineInv);
-        }
 
         String sqlAntiFreecamLogs = "CREATE TABLE IF NOT EXISTS anti_freecam_logs (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -71,12 +74,6 @@ public class DatabaseManager {
                 "checked_at INTEGER NOT NULL" +
                 ");";
 
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sqlAntiFreecamLogs);
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_anti_freecam_logs_checked_at " +
-                    "ON anti_freecam_logs(checked_at DESC)");
-        }
-
         String sqlAuditLogs = "CREATE TABLE IF NOT EXISTS audit_logs (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "actor_uuid TEXT," +
@@ -85,8 +82,16 @@ public class DatabaseManager {
                 "created_at INTEGER NOT NULL" +
                 ");";
         try (Statement stmt = connection.createStatement()) {
+            stmt.execute(sqlLastLocations);
+            stmt.execute(sqlOfflineInv);
+            stmt.execute(sqlAntiFreecamLogs);
             stmt.execute(sqlAuditLogs);
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)");
+            stmt.execute("DROP INDEX IF EXISTS idx_anti_freecam_logs_checked_at");
+            stmt.execute("DROP INDEX IF EXISTS idx_audit_logs_created_at");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_anti_freecam_logs_order " +
+                    "ON anti_freecam_logs(checked_at DESC, id DESC)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_order " +
+                    "ON audit_logs(created_at DESC, id DESC)");
         }
     }
 
@@ -95,11 +100,16 @@ public class DatabaseManager {
             try {
                 connection.close();
             } catch (SQLException ignored) {}
+            connection = null;
         }
     }
 
     public Connection getConnection() {
         return connection;
+    }
+
+    void logFailure(String operation, Exception exception) {
+        plugin.getLogger().log(Level.WARNING, "Database operation failed: " + operation, exception);
     }
 
     public boolean reconnect() {

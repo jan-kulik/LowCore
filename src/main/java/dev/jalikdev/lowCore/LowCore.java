@@ -33,16 +33,23 @@ public class LowCore extends JavaPlugin {
     public static final String DEFAULT_PREFIX = "&8[&aLowCore&8] &7";
 
     private WorldInventoryManager worldInventoryManager;
-
     private static LowCore instance;
     private String prefix;
 
-    private boolean updateAvailable = false;
-    private String latestVersion = null;
+    private volatile boolean updateAvailable;
+    private volatile String latestVersion;
 
     private PerformanceMonitor performanceMonitor;
     private DimensionLockManager dimensionLockManager;
     private AntiFreecamManager antiFreecamManager;
+    private TrialDropManager trialDropManager;
+    private InvseeCommand invseeCommand;
+    private EcCommand ecCommand;
+    private VanishCommand vanishCommand;
+    private GodCommand godCommand;
+    private NightVisionCommand nightVisionCommand;
+    private SitCommand sitCommand;
+    private UpdateChecker updateChecker;
 
     private DatabaseManager databaseManager;
     private LastLocationRepository lastLocationRepository;
@@ -71,8 +78,9 @@ public class LowCore extends JavaPlugin {
             databaseManager.connect();
             getLogger().info("SQLite database connected.");
         } catch (SQLException e) {
-            getLogger().severe("Could not connect to SQLite database!");
-            e.printStackTrace();
+            getLogger().log(java.util.logging.Level.SEVERE, "Could not connect to SQLite database.", e);
+            getServer().getPluginManager().disablePlugin(this);
+            return;
         }
 
         worldInventoryManager = new WorldInventoryManager(this);
@@ -104,14 +112,14 @@ public class LowCore extends JavaPlugin {
         getServer().getPluginManager().registerEvents(antiFreecamCommand, this);
         getServer().getPluginManager().registerEvents(antiFreecamManager, this);
 
-        TrialDropManager trialDropManager = new TrialDropManager(this);
+        trialDropManager = new TrialDropManager(this);
         TrialDropsCommand trialDropsCommand = new TrialDropsCommand(trialDropManager);
         Objects.requireNonNull(getCommand("trial-drops")).setExecutor(trialDropsCommand);
         Objects.requireNonNull(getCommand("trial-drops")).setTabCompleter(trialDropsCommand);
         getServer().getPluginManager().registerEvents(trialDropManager, this);
         getServer().getPluginManager().registerEvents(trialDropsCommand, this);
 
-        InvseeCommand invseeCommand = new InvseeCommand(this);
+        invseeCommand = new InvseeCommand(this);
         Objects.requireNonNull(getCommand("invsee")).setExecutor(invseeCommand);
         Objects.requireNonNull(getCommand("invsee")).setTabCompleter(invseeCommand);
         getServer().getPluginManager().registerEvents(invseeCommand, this);
@@ -120,7 +128,7 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("gm")).setExecutor(gmCommand);
         Objects.requireNonNull(getCommand("gm")).setTabCompleter(gmCommand);
 
-        EcCommand ecCommand = new EcCommand(this);
+        ecCommand = new EcCommand(this);
         Objects.requireNonNull(getCommand("ec")).setExecutor(ecCommand);
         Objects.requireNonNull(getCommand("ec")).setTabCompleter(ecCommand);
         getServer().getPluginManager().registerEvents(ecCommand, this);
@@ -163,8 +171,8 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("craft")).setTabCompleter(craftCommand);
         Objects.requireNonNull(getCommand("workbench")).setTabCompleter(craftCommand);
 
-        VanishCommand vanishCommand = new VanishCommand(this);
-        getCommand("vanish").setExecutor(vanishCommand);
+        vanishCommand = new VanishCommand(this);
+        Objects.requireNonNull(getCommand("vanish")).setExecutor(vanishCommand);
         Bukkit.getPluginManager().registerEvents(vanishCommand, this);
         vanishCommand.startActionbarTask();
 
@@ -172,9 +180,10 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("speed")).setExecutor(speedCommand);
         Objects.requireNonNull(getCommand("speed")).setTabCompleter(speedCommand);
 
-        GodCommand godCommand = new GodCommand();
+        godCommand = new GodCommand();
         Objects.requireNonNull(getCommand("god")).setExecutor(godCommand);
         Objects.requireNonNull(getCommand("god")).setTabCompleter(godCommand);
+        getServer().getPluginManager().registerEvents(godCommand, this);
 
 
         KillAllCommand killAllCommand = new KillAllCommand();
@@ -209,15 +218,16 @@ public class LowCore extends JavaPlugin {
         Objects.requireNonNull(getCommand("lowcoreadmin")).setExecutor(adminCommand);
         Objects.requireNonNull(getCommand("lowcoreadmin")).setTabCompleter(adminCommand);
 
-        NightVisionCommand nightVisionCommand = new NightVisionCommand(this);
+        nightVisionCommand = new NightVisionCommand(this);
         Objects.requireNonNull(getCommand("nightvision")).setExecutor(nightVisionCommand);
         getServer().getPluginManager().registerEvents(nightVisionCommand, this);
 
-        SitCommand sit = new SitCommand(this);
-        getCommand("sit").setExecutor(sit);
-        getServer().getPluginManager().registerEvents(sit, this);
+        sitCommand = new SitCommand(this);
+        Objects.requireNonNull(getCommand("sit")).setExecutor(sitCommand);
+        getServer().getPluginManager().registerEvents(sitCommand, this);
 
 
+        updateChecker = new UpdateChecker(this);
         if (getConfig().getBoolean("update-checker.enabled", true)) checkForUpdatesNow();
 
         getServer().getPluginManager().registerEvents(new JoinQuitListener(this), this);
@@ -231,6 +241,30 @@ public class LowCore extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (invseeCommand != null) {
+            invseeCommand.shutdown();
+        }
+
+        if (ecCommand != null) {
+            ecCommand.shutdown();
+        }
+
+        if (vanishCommand != null) {
+            vanishCommand.shutdown();
+        }
+
+        if (godCommand != null) {
+            godCommand.shutdown();
+        }
+
+        if (nightVisionCommand != null) {
+            nightVisionCommand.shutdown();
+        }
+
+        if (sitCommand != null) {
+            sitCommand.shutdown();
+        }
+
         if (antiFreecamManager != null) {
             antiFreecamManager.shutdown();
         }
@@ -247,6 +281,7 @@ public class LowCore extends JavaPlugin {
             databaseManager.close();
         }
 
+        instance = null;
         getLogger().info("LowCore plugin disabled.");
     }
 
@@ -256,8 +291,6 @@ public class LowCore extends JavaPlugin {
     }
 
     private void migrateConfig() {
-        // 2.4.0 used a three-second delay. Move that untouched default into
-        // the early terrain-loading phase while preserving custom values.
         File configFile = new File(getDataFolder(), "config.yml");
         YamlConfiguration diskConfig = YamlConfiguration.loadConfiguration(configFile);
         boolean changed = false;
@@ -271,9 +304,6 @@ public class LowCore extends JavaPlugin {
             changed = true;
         }
 
-        // 2.5.0 started after one tick, which some clients lost among their
-        // initial chunk packets. Give login ten ticks, retry once, and erase
-        // the client-only sign immediately so neither automatic attempt flashes.
         if (diskConfig.contains("anti-freecam")
                 && !diskConfig.getBoolean("anti-freecam.invisible-probe-migrated", false)) {
             if (getConfig().getLong("anti-freecam.join-delay-ticks", 1L) == 1L) {
@@ -292,8 +322,6 @@ public class LowCore extends JavaPlugin {
             changed = true;
         }
 
-        // 3.0 renames the public feature and preserves existing Anti-Freecam
-        // timing, punishment and enabled-state settings on upgraded servers.
         if (!diskConfig.getBoolean("anti-mods.migrated", false)) {
             org.bukkit.configuration.ConfigurationSection oldSection =
                     diskConfig.getConfigurationSection("anti-freecam");
@@ -397,6 +425,8 @@ public class LowCore extends JavaPlugin {
         if (antiFreecamManager != null && !antiFreecamManager.isEnabled()) {
             antiFreecamManager.shutdown();
         }
+        if (trialDropManager != null) trialDropManager.reload();
+        if (dimensionLockManager != null) dimensionLockManager.reload();
         reloadPerformanceMonitor();
         sendConfigMessage(sender, "reload");
         getLogger().info("Configuration reloaded by " + sender.getName());
@@ -414,7 +444,8 @@ public class LowCore extends JavaPlugin {
     }
 
     public void checkForUpdatesNow() {
-        new UpdateChecker(this).checkForUpdates();
+        if (updateChecker == null) updateChecker = new UpdateChecker(this);
+        updateChecker.checkForUpdates();
     }
 
     public boolean isUpdateAvailable() {

@@ -4,12 +4,12 @@ import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.database.DatabaseManager;
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository;
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository.OfflineInventoryMeta;
+import io.papermc.paper.plugin.configuration.PluginMeta;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginDescriptionFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -140,7 +140,7 @@ public class LowCoreAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean debugInfo(CommandSender sender) {
-        PluginDescriptionFile d = plugin.getDescription();
+        PluginMeta d = plugin.getPluginMeta();
         String ver = d.getVersion();
         String name = d.getName();
         String api = Bukkit.getBukkitVersion();

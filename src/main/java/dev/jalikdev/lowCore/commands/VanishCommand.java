@@ -1,11 +1,9 @@
 package dev.jalikdev.lowCore.commands;
 
 import dev.jalikdev.lowCore.LowCore;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.chat.TextComponent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -13,7 +11,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.server.TabCompleteEvent;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashSet;
@@ -23,22 +23,26 @@ import java.util.UUID;
 
 public class VanishCommand implements CommandExecutor, Listener {
 
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
+    private static final LegacyComponentSerializer LEGACY_SECTION = LegacyComponentSerializer.legacySection();
+
     private final LowCore plugin;
     private final Set<UUID> vanished = new HashSet<>();
+    private BukkitTask actionbarTask;
 
     public VanishCommand(LowCore plugin) {
         this.plugin = plugin;
     }
 
     public void startActionbarTask() {
-        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        if (actionbarTask != null) return;
+        actionbarTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (vanished.isEmpty()) return;
-            String msg = colorize(getCfg("vanish.messages.actionbar", "&aYou are currently vanished."));
-            BaseComponent[] comp = TextComponent.fromLegacyText(msg);
+            Component message = LEGACY.deserialize(getCfg("vanish.messages.actionbar", "&aYou are currently vanished."));
             for (UUID id : vanished) {
                 Player p = Bukkit.getPlayer(id);
                 if (p != null && p.isOnline()) {
-                    p.spigot().sendMessage(ChatMessageType.ACTION_BAR, comp);
+                    p.sendActionBar(message);
                 }
             }
         }, 0L, 40L);
@@ -67,14 +71,12 @@ public class VanishCommand implements CommandExecutor, Listener {
                 if (!p.equals(player)) p.showPlayer(plugin, player);
             }
 
-            try {
-                player.setSilent(false);
-                player.setCollidable(true);
-                player.setCanPickupItems(true);
-            } catch (Throwable ignored) {}
+            restorePlayerState(player);
 
-            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.messages.disabled", "&eYou are now visible.")));
-            Bukkit.broadcastMessage(replacePlayer(colorize(getCfg("vanish.messages.fake-join", "+ %player%")), player));
+            player.sendMessage(LEGACY_SECTION.deserialize(plugin.getPrefix()).append(
+                    LEGACY.deserialize(getCfg("vanish.messages.disabled", "&eYou are now visible."))));
+            Bukkit.broadcast(LEGACY.deserialize(replacePlayer(
+                    getCfg("vanish.messages.fake-join", "+ %player%"), player)));
         } else {
             vanished.add(player.getUniqueId());
 
@@ -82,14 +84,14 @@ public class VanishCommand implements CommandExecutor, Listener {
                 if (!p.equals(player)) p.hidePlayer(plugin, player);
             }
 
-            try {
-                player.setSilent(true);
-                player.setCollidable(false);
-                player.setCanPickupItems(false);
-            } catch (Throwable ignored) {}
+            player.setSilent(true);
+            player.setCollidable(false);
+            player.setCanPickupItems(false);
 
-            player.sendMessage(colorize(plugin.getPrefix() + getCfg("vanish.messages.enabled", "&aYou are now vanished.")));
-            Bukkit.broadcastMessage(replacePlayer(colorize(getCfg("vanish.messages.fake-quit", "- %player%")), player));
+            player.sendMessage(LEGACY_SECTION.deserialize(plugin.getPrefix()).append(
+                    LEGACY.deserialize(getCfg("vanish.messages.enabled", "&aYou are now vanished."))));
+            Bukkit.broadcast(LEGACY.deserialize(replacePlayer(
+                    getCfg("vanish.messages.fake-quit", "- %player%"), player)));
         }
 
         return true;
@@ -106,6 +108,12 @@ public class VanishCommand implements CommandExecutor, Listener {
                 joiner.hidePlayer(plugin, v);
             }
         }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        if (vanished.remove(player.getUniqueId())) restorePlayerState(player);
     }
 
     @EventHandler
@@ -139,7 +147,25 @@ public class VanishCommand implements CommandExecutor, Listener {
         return msg.replace("%player%", p.getName());
     }
 
-    private String colorize(String s) {
-        return ChatColor.translateAlternateColorCodes('&', s);
+    private void restorePlayerState(Player player) {
+        player.setSilent(false);
+        player.setCollidable(true);
+        player.setCanPickupItems(true);
+    }
+
+    public void shutdown() {
+        if (actionbarTask != null) {
+            actionbarTask.cancel();
+            actionbarTask = null;
+        }
+        for (UUID playerId : vanished) {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player == null) continue;
+            restorePlayerState(player);
+            for (Player viewer : Bukkit.getOnlinePlayers()) {
+                if (!viewer.equals(player)) viewer.showPlayer(plugin, player);
+            }
+        }
+        vanished.clear();
     }
 }

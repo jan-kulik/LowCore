@@ -4,19 +4,24 @@ import dev.jalikdev.lowCore.LowCore;
 import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.EnumMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class DimensionLockManager {
 
     private final LowCore plugin;
+    private final Map<Dimension, LockState> locks = new EnumMap<>(Dimension.class);
     private BukkitTask expiryTask;
 
     public DimensionLockManager(LowCore plugin) {
         this.plugin = plugin;
+        reload();
     }
 
     public void start() {
+        if (expiryTask != null) return;
         checkExpiredLocks();
         expiryTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkExpiredLocks, 20L, 20L);
     }
@@ -29,9 +34,10 @@ public class DimensionLockManager {
     }
 
     public void lock(Dimension dimension, long durationMillis) {
+        long unlockAt = durationMillis > 0L ? System.currentTimeMillis() + durationMillis : 0L;
+        locks.put(dimension, new LockState(true, unlockAt));
         plugin.getConfig().set(dimension.lockedPath(), true);
-        plugin.getConfig().set(dimension.unlockAtPath(),
-                durationMillis > 0L ? System.currentTimeMillis() + durationMillis : 0L);
+        plugin.getConfig().set(dimension.unlockAtPath(), unlockAt);
         plugin.saveConfig();
     }
 
@@ -40,11 +46,9 @@ public class DimensionLockManager {
     }
 
     public boolean isLocked(Dimension dimension) {
-        if (!plugin.getConfig().getBoolean(dimension.lockedPath(), false)) {
-            return false;
-        }
-
-        long unlockAt = plugin.getConfig().getLong(dimension.unlockAtPath(), 0L);
+        LockState state = locks.getOrDefault(dimension, LockState.UNLOCKED);
+        if (!state.locked()) return false;
+        long unlockAt = state.unlockAt();
         if (unlockAt > 0L && unlockAt <= System.currentTimeMillis()) {
             setUnlocked(dimension, true);
             return false;
@@ -57,7 +61,7 @@ public class DimensionLockManager {
             return -1L;
         }
 
-        long unlockAt = plugin.getConfig().getLong(dimension.unlockAtPath(), 0L);
+        long unlockAt = locks.getOrDefault(dimension, LockState.UNLOCKED).unlockAt();
         return unlockAt == 0L ? 0L : Math.max(1L, unlockAt - System.currentTimeMillis());
     }
 
@@ -68,7 +72,10 @@ public class DimensionLockManager {
     }
 
     private void setUnlocked(Dimension dimension, boolean announce) {
-        boolean wasLocked = plugin.getConfig().getBoolean(dimension.lockedPath(), false);
+        LockState previous = locks.getOrDefault(dimension, LockState.UNLOCKED);
+        boolean wasLocked = previous.locked();
+        if (!wasLocked && previous.unlockAt() == 0L) return;
+        locks.put(dimension, LockState.UNLOCKED);
         plugin.getConfig().set(dimension.lockedPath(), false);
         plugin.getConfig().set(dimension.unlockAtPath(), 0L);
         plugin.saveConfig();
@@ -78,6 +85,19 @@ public class DimensionLockManager {
             Bukkit.getConsoleSender().sendMessage(message);
             Bukkit.getOnlinePlayers().forEach(player -> player.sendMessage(message));
         }
+    }
+
+    public void reload() {
+        for (Dimension dimension : Dimension.values()) {
+            boolean locked = plugin.getConfig().getBoolean(dimension.lockedPath(), false);
+            long unlockAt = plugin.getConfig().getLong(dimension.unlockAtPath(), 0L);
+            locks.put(dimension, new LockState(locked, unlockAt));
+        }
+        checkExpiredLocks();
+    }
+
+    private record LockState(boolean locked, long unlockAt) {
+        private static final LockState UNLOCKED = new LockState(false, 0L);
     }
 
     public enum Dimension {

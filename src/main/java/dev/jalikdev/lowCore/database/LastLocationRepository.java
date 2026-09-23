@@ -21,16 +21,17 @@ public class LastLocationRepository {
 
     public void saveLogoutLocation(Player player) {
         Location loc = player.getLocation();
-        Connection con = db.getConnection();
+        World world = loc.getWorld();
+        if (world == null) return;
 
         String sql = "INSERT OR REPLACE INTO last_locations " +
                 "(uuid, name, world, x, y, z, yaw, pitch, last_seen) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
-        try (PreparedStatement ps = con.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection().prepareStatement(sql)) {
             ps.setString(1, player.getUniqueId().toString());
             ps.setString(2, player.getName());
-            ps.setString(3, loc.getWorld().getName());
+            ps.setString(3, world.getName());
             ps.setDouble(4, loc.getX());
             ps.setDouble(5, loc.getY());
             ps.setDouble(6, loc.getZ());
@@ -39,16 +40,15 @@ public class LastLocationRepository {
             ps.setTimestamp(9, new Timestamp(System.currentTimeMillis()));
             ps.executeUpdate();
         } catch (SQLException e) {
-            e.printStackTrace();
+            db.logFailure("save logout location", e);
         }
     }
 
     public Location getLastLocationByName(String name) {
-        Connection con = db.getConnection();
         String sql = "SELECT world, x, y, z, yaw, pitch FROM last_locations " +
                 "WHERE name = ? ORDER BY last_seen DESC LIMIT 1;";
 
-        try (PreparedStatement ps = con.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection().prepareStatement(sql)) {
             ps.setString(1, name);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -68,9 +68,15 @@ public class LastLocationRepository {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            db.logFailure("load logout location", e);
         }
 
         return null;
+    }
+
+    private Connection connection() throws SQLException {
+        Connection connection = db.getConnection();
+        if (connection == null || connection.isClosed()) throw new SQLException("Database connection is closed");
+        return connection;
     }
 }
