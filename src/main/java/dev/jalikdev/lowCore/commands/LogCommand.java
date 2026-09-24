@@ -4,7 +4,6 @@ import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.database.AdminAuditLogRepository;
 import dev.jalikdev.lowCore.database.AdminAuditLogRepository.AuditEntry;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -19,7 +18,6 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,6 +28,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+
+import static dev.jalikdev.lowCore.utils.GuiUtil.fill;
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
 public class LogCommand implements CommandExecutor, Listener, TabCompleter {
     private static final int PAGE_SIZE = 45;
@@ -114,7 +116,7 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
         int total = repository.count();
         int maximumPage = Math.max(0, (total - 1) / PAGE_SIZE);
         int page = Math.max(0, Math.min(requestedPage, maximumPage));
-        AuditHolder holder = new AuditHolder(AuditPage.LOGS, page,
+        AuditHolder holder = new AuditHolder(AuditPage.LOGS, page, maximumPage,
                 "§8Admin Audit Log §7(" + (page + 1) + "/" + (maximumPage + 1) + ")");
         fill(holder.inventory);
         List<AuditEntry> entries = repository.findRecent(PAGE_SIZE, page * PAGE_SIZE);
@@ -129,7 +131,7 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
     }
 
     private void openClearGui(Player player) {
-        AuditHolder holder = new AuditHolder(AuditPage.CLEAR, 0, "§cClear Admin Audit Log?");
+        AuditHolder holder = new AuditHolder(AuditPage.CLEAR, 0, 0, "§cClear Admin Audit Log?");
         fill(holder.inventory);
         holder.inventory.setItem(11, item(Material.LIME_CONCRETE, "&aCancel"));
         holder.inventory.setItem(15, item(Material.RED_CONCRETE, "&cDelete all", "&7This cannot be undone."));
@@ -171,28 +173,14 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
         if (slot == 45 && holder.pageNumber > 0) openLogsGui(player, holder.pageNumber - 1);
         else if (slot == 48) player.performCommand("lowcore");
         else if (slot == 51) openClearGui(player);
-        else if (slot == 53) openLogsGui(player, holder.pageNumber + 1);
+        else if (slot == 53 && holder.pageNumber < holder.maximumPage) {
+            openLogsGui(player, holder.pageNumber + 1);
+        }
     }
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getView().getTopInventory().getHolder() instanceof AuditHolder) event.setCancelled(true);
-    }
-
-    private ItemStack item(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-        List<String> colored = new ArrayList<>();
-        for (String line : lore) colored.add(ChatColor.translateAlternateColorCodes('&', line));
-        meta.setLore(colored);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void fill(Inventory inventory) {
-        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, filler);
     }
 
     @Override
@@ -208,11 +196,14 @@ public class LogCommand implements CommandExecutor, Listener, TabCompleter {
     private static final class AuditHolder implements InventoryHolder {
         private final AuditPage page;
         private final int pageNumber;
+        private final int maximumPage;
         private final Inventory inventory;
-        private AuditHolder(AuditPage page, int pageNumber, String title) {
+        private AuditHolder(AuditPage page, int pageNumber, int maximumPage, String inventoryTitle) {
             this.page = page;
             this.pageNumber = pageNumber;
-            this.inventory = Bukkit.createInventory(this, page == AuditPage.LOGS ? 54 : 27, title);
+            this.maximumPage = maximumPage;
+            this.inventory = Bukkit.createInventory(this, page == AuditPage.LOGS ? 54 : 27,
+                    title(inventoryTitle));
         }
         @Override public @NotNull Inventory getInventory() { return inventory; }
     }

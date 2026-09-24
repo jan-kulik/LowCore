@@ -1,7 +1,6 @@
 package dev.jalikdev.lowCore.commands;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -15,15 +14,16 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import dev.jalikdev.lowCore.LowCore;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static dev.jalikdev.lowCore.utils.GuiUtil.fill;
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
 public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
 
@@ -58,36 +58,17 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
         return true;
     }
 
-    private ItemStack createFiller() {
-        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(" ");
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void fillEmptySlots(Inventory inv) {
-        ItemStack filler = createFiller();
-        for (int i = 0; i < inv.getSize(); i++) {
-            if (inv.getItem(i) == null || inv.getItem(i).getType() == Material.AIR) {
-                inv.setItem(i, filler);
-            }
-        }
-    }
-
-
     private void openMainGUI(Player player) {
         CleanupHolder holder = new CleanupHolder(null, false, "§8Lag Cleanup");
         Inventory inv = holder.inventory;
+        fill(inv);
 
-        inv.setItem(11, createBtn(Material.BARRIER, "§cRemove Items", "§7Remove all dropped items."));
-        inv.setItem(12, createBtn(Material.EXPERIENCE_BOTTLE, "§eRemove XP Orbs", "§7Remove all XP orbs."));
-        inv.setItem(13, createBtn(Material.OAK_BOAT, "§bRemove Boats/Minecarts", "§7Remove all riding vehicles."));
-        inv.setItem(14, createBtn(Material.ZOMBIE_HEAD, "§cRemove Hostile Mobs", "§7Remove all hostile creatures."));
-        inv.setItem(15, createBtn(Material.COW_SPAWN_EGG, "§aRemove Passive Mobs", "§7Remove all passive creatures."));
-        inv.setItem(22, createBtn(Material.ARROW, "§eLowCore menu", "§7Return to the control center."));
-
-        fillEmptySlots(inv);
+        inv.setItem(11, item(Material.BARRIER, "§cRemove Items", "§7Remove all dropped items."));
+        inv.setItem(12, item(Material.EXPERIENCE_BOTTLE, "§eRemove XP Orbs", "§7Remove all XP orbs."));
+        inv.setItem(13, item(Material.OAK_BOAT, "§bRemove Boats/Minecarts", "§7Remove all riding vehicles."));
+        inv.setItem(14, item(Material.ZOMBIE_HEAD, "§cRemove Hostile Mobs", "§7Remove all hostile creatures."));
+        inv.setItem(15, item(Material.COW_SPAWN_EGG, "§aRemove Passive Mobs", "§7Remove all passive creatures."));
+        inv.setItem(22, item(Material.ARROW, "§eLowCore menu", "§7Return to the control center."));
 
         player.openInventory(inv);
     }
@@ -95,22 +76,12 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
     private void openConfirmGUI(Player player, String type) {
         CleanupHolder holder = new CleanupHolder(type, true, "§cConfirm " + type);
         Inventory inv = holder.inventory;
+        fill(inv);
 
-        inv.setItem(11, createBtn(Material.GREEN_CONCRETE, "§aConfirm", "§7Click to confirm removal."));
-        inv.setItem(15, createBtn(Material.RED_CONCRETE, "§cCancel", "§7Click to go back."));
-
-        fillEmptySlots(inv);
+        inv.setItem(11, item(Material.GREEN_CONCRETE, "§aConfirm", "§7Click to confirm removal."));
+        inv.setItem(15, item(Material.RED_CONCRETE, "§cCancel", "§7Click to go back."));
 
         player.openInventory(inv);
-    }
-
-    private ItemStack createBtn(Material mat, String name, String... lore) {
-        ItemStack item = new ItemStack(mat);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-        meta.setLore(Arrays.asList(lore));
-        item.setItemMeta(meta);
-        return item;
     }
 
     @EventHandler
@@ -228,10 +199,10 @@ public class CleanupCommand implements CommandExecutor, TabCompleter, Listener {
         private final boolean confirmation;
         private final Inventory inventory;
 
-        private CleanupHolder(String type, boolean confirmation, String title) {
+        private CleanupHolder(String type, boolean confirmation, String inventoryTitle) {
             this.type = type;
             this.confirmation = confirmation;
-            this.inventory = Bukkit.createInventory(this, 27, title);
+            this.inventory = Bukkit.createInventory(this, 27, title(inventoryTitle));
         }
 
         @Override

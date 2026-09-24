@@ -12,7 +12,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import dev.jalikdev.lowCore.utils.CompletionUtil;
 
 import java.util.Collections;
@@ -20,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
 public class EcCommand implements CommandExecutor, TabCompleter, Listener {
 
@@ -83,8 +84,7 @@ public class EcCommand implements CommandExecutor, TabCompleter, Listener {
         Inventory inv = Bukkit.createInventory(
                 viewer,
                 27,
-                LegacyComponentSerializer.legacyAmpersand().deserialize(
-                        "&8EnderChest &7- &a" + offline.getName() + " &7(offline)")
+                title("&8EnderChest &7- &a" + offline.getName() + " &7(offline)")
         );
 
         inv.setContents(data);

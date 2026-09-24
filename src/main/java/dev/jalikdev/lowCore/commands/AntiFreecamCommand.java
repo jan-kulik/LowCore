@@ -7,7 +7,6 @@ import dev.jalikdev.lowCore.antifreecam.AntiFreecamManager.StartResult;
 import dev.jalikdev.lowCore.antifreecam.AntiModClient;
 import dev.jalikdev.lowCore.database.AntiFreecamLogRepository.AntiFreecamLogEntry;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -22,7 +21,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,6 +35,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import static dev.jalikdev.lowCore.utils.GuiUtil.fill;
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
+
 public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, Listener {
 
     private static final List<String> ACTIONS = List.of("gui", "on", "off", "toggle", "status",
@@ -46,6 +48,9 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             "TIMEOUT", "PROTECTED", "INCONCLUSIVE");
     private static final int[] LOG_PAGE_OPTIONS = {1, 3, 5, 10, 20};
     private static final int[] MANUAL_COOLDOWN_OPTIONS = {0, 5, 10, 30, 60};
+    private static final int[] CLIENT_SLOTS = {10, 11, 12, 14, 15};
+    private static final int PLAYER_PAGE_SIZE = 45;
+    private static final List<String> CLIENT_FILTERS = clientFilters();
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
             .withZone(ZoneId.systemDefault());
 
@@ -200,7 +205,7 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
 
     private void sendStatus(CommandSender sender) {
         LowCore.sendConfigMessage(sender, "anti-mods.status",
-                "status", manager.isEnabled() ? ChatColor.GREEN + "enabled" : ChatColor.RED + "disabled",
+                "status", manager.isEnabled() ? "§aenabled" : "§cdisabled",
                 "punishment", manager.getPunishment().displayName());
     }
 
@@ -259,11 +264,10 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
     private void openClientsGui(Player player) {
         GuiHolder holder = new GuiHolder(GuiPage.CLIENTS, 27, "§8Anti-Mods: Client Rules", 0);
         fill(holder.inventory);
-        int[] slots = {10, 11, 12, 14, 15};
         List<AntiModClient> clients = manager.getClients();
-        for (int index = 0; index < clients.size(); index++) {
+        for (int index = 0; index < clients.size() && index < CLIENT_SLOTS.length; index++) {
             AntiModClient client = clients.get(index);
-            int slot = slots[index];
+            int slot = CLIENT_SLOTS[index];
             holder.clientsBySlot.put(slot, client);
             boolean blocked = manager.isClientBlocked(client);
             holder.inventory.setItem(slot, item(client.icon(), (blocked ? "&c" : "&a") + client.displayName(),
@@ -298,18 +302,29 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         player.openInventory(holder.inventory);
     }
 
-    private void openPlayerGui(Player player) {
-        GuiHolder holder = new GuiHolder(GuiPage.PLAYERS, 54, "§8Anti-Mods: Select Player", 0);
-        fill(holder.inventory);
-        int slot = 0;
-        for (Player target : Bukkit.getOnlinePlayers().stream()
+    private void openPlayerGui(Player player, int requestedPage) {
+        List<? extends Player> targets = Bukkit.getOnlinePlayers().stream()
                 .filter(target -> !manager.isBedrockPlayer(target))
-                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName())).toList()) {
-            if (slot >= 45) break;
+                .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
+                .toList();
+        int maximumPage = Math.max(0, (targets.size() - 1) / PLAYER_PAGE_SIZE);
+        int selectedPage = Math.max(0, Math.min(requestedPage, maximumPage));
+        GuiHolder holder = new GuiHolder(GuiPage.PLAYERS, 54,
+                "§8Anti-Mods: Select Player", selectedPage, maximumPage);
+        fill(holder.inventory);
+        int start = selectedPage * PLAYER_PAGE_SIZE;
+        int end = Math.min(start + PLAYER_PAGE_SIZE, targets.size());
+        for (int index = start; index < end; index++) {
+            int slot = index - start;
+            Player target = targets.get(index);
             holder.playersBySlot.put(slot, target.getUniqueId());
-            holder.inventory.setItem(slot++, playerHead(target));
+            holder.inventory.setItem(slot, playerHead(target));
         }
+        if (selectedPage > 0) holder.inventory.setItem(45, item(Material.ARROW, "&ePrevious page"));
+        holder.inventory.setItem(48, item(Material.PAPER, "&fPage " + (selectedPage + 1)
+                + " / " + (maximumPage + 1), "&7Players: &e" + targets.size()));
         holder.inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to Anti-Mods settings."));
+        if (selectedPage < maximumPage) holder.inventory.setItem(53, item(Material.ARROW, "&eNext page"));
         player.openInventory(holder.inventory);
     }
 
@@ -412,7 +427,11 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
                 } else if (slot == 22) openMainGui(player);
             }
             case PLAYERS -> {
-                if (slot == 49) openMainGui(player);
+                if (slot == 45 && holder.pageNumber > 0) openPlayerGui(player, holder.pageNumber - 1);
+                else if (slot == 49) openMainGui(player);
+                else if (slot == 53 && holder.pageNumber < holder.maximumPage) {
+                    openPlayerGui(player, holder.pageNumber + 1);
+                }
                 else {
                     UUID id = holder.playersBySlot.get(slot);
                     if (id != null) {
@@ -466,7 +485,7 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             openMainGui(player);
         } else if (slot == 14) openClientsGui(player);
         else if (slot == 16) openSettingsGui(player);
-        else if (slot == 29) openPlayerGui(player);
+        else if (slot == 29) openPlayerGui(player, 0);
         else if (slot == 31) openLogsGui(player, 0);
         else if (slot == 33) player.performCommand("lowcore");
     }
@@ -513,26 +532,6 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         return item;
     }
 
-    private ItemStack item(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(color(name));
-        List<String> colored = new ArrayList<>();
-        for (String line : lore) colored.add(color(line));
-        meta.setLore(colored);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void fill(Inventory inventory) {
-        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, filler);
-    }
-
-    private String color(String value) {
-        return ChatColor.translateAlternateColorCodes('&', value);
-    }
-
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                                  @NotNull String alias, @NotNull String[] args) {
@@ -563,6 +562,13 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
         return values.stream().filter(value -> value.startsWith(normalized)).toList();
     }
 
+    private static List<String> clientFilters() {
+        List<String> values = new ArrayList<>();
+        values.add(null);
+        for (AntiModClient client : AntiModClient.values()) values.add(client.displayName());
+        return java.util.Collections.unmodifiableList(values);
+    }
+
     private enum GuiPage { MAIN, CLIENTS, SETTINGS, PLAYERS, LOGS, CLEAR_LOGS }
 
     private record LogFilter(String result, String client, String player) {
@@ -573,25 +579,30 @@ public final class AntiFreecamCommand implements CommandExecutor, TabCompleter, 
             return new LogFilter(LOG_RESULTS.get((index + 1) % LOG_RESULTS.size()), client, player);
         }
         private LogFilter nextClient() {
-            List<String> values = new ArrayList<>();
-            values.add(null);
-            for (AntiModClient value : AntiModClient.values()) values.add(value.displayName());
-            int index = values.indexOf(client);
-            return new LogFilter(result, values.get((index + 1) % values.size()), player);
+            int index = CLIENT_FILTERS.indexOf(client);
+            return new LogFilter(result, CLIENT_FILTERS.get((index + 1) % CLIENT_FILTERS.size()), player);
         }
     }
 
     private static final class GuiHolder implements InventoryHolder {
         private final GuiPage page;
         private final int pageNumber;
-        private final Map<Integer, UUID> playersBySlot = new HashMap<>();
-        private final Map<Integer, AntiModClient> clientsBySlot = new HashMap<>();
+        private final int maximumPage;
+        private final Map<Integer, UUID> playersBySlot;
+        private final Map<Integer, AntiModClient> clientsBySlot;
         private final Inventory inventory;
 
-        private GuiHolder(GuiPage page, int size, String title, int pageNumber) {
+        private GuiHolder(GuiPage page, int size, String inventoryTitle, int pageNumber) {
+            this(page, size, inventoryTitle, pageNumber, 0);
+        }
+
+        private GuiHolder(GuiPage page, int size, String inventoryTitle, int pageNumber, int maximumPage) {
             this.page = page;
             this.pageNumber = pageNumber;
-            this.inventory = Bukkit.createInventory(this, size, title);
+            this.maximumPage = maximumPage;
+            this.playersBySlot = page == GuiPage.PLAYERS ? new HashMap<>() : Map.of();
+            this.clientsBySlot = page == GuiPage.CLIENTS ? new HashMap<>() : Map.of();
+            this.inventory = Bukkit.createInventory(this, size, title(inventoryTitle));
         }
 
         @Override

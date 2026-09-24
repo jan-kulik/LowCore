@@ -67,7 +67,7 @@ public class PerformanceCommand implements CommandExecutor, TabCompleter {
         int chunks = 0;
         if (plugin.getConfig().getBoolean("performance.show-chunks", true)) {
             for (World world : Bukkit.getWorlds()) {
-                chunks += world.getLoadedChunks().length;
+                chunks += world.getChunkCount();
             }
         }
 

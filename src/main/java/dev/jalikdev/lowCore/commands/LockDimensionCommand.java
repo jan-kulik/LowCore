@@ -5,7 +5,6 @@ import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
 import dev.jalikdev.lowCore.utils.DurationUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -19,7 +18,6 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,6 +26,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Locale;
+
+import static dev.jalikdev.lowCore.utils.GuiUtil.fill;
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
 public class LockDimensionCommand implements CommandExecutor, TabCompleter, Listener {
 
@@ -165,31 +168,6 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
         return item(material, color + dimension.displayName(), lore.toArray(String[]::new));
     }
 
-    private ItemStack item(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(color(name));
-
-        List<String> coloredLore = new ArrayList<>();
-        for (String line : lore) {
-            coloredLore.add(color(line));
-        }
-        meta.setLore(coloredLore);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void fill(Inventory inventory) {
-        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int slot = 0; slot < inventory.getSize(); slot++) {
-            inventory.setItem(slot, filler);
-        }
-    }
-
-    private String color(String value) {
-        return ChatColor.translateAlternateColorCodes('&', value);
-    }
-
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         Inventory top = event.getView().getTopInventory();
@@ -228,8 +206,9 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
             plugin.audit(player, "Unlocked " + dimension.displayName());
             LowCore.sendConfigMessage(player, "dimensions.unlocked", "dimension", dimension.displayName());
             openSettingsGui(player, dimension);
-        } else if (holder.durationBySlot().containsKey(slot)) {
-            long duration = holder.durationBySlot().get(slot);
+        } else {
+            Long duration = holder.durationBySlot().get(slot);
+            if (duration == null) return;
             lockManager.lock(dimension, duration);
             plugin.audit(player, "Locked " + dimension.displayName() + " for " + DurationUtil.formatMillis(duration));
             LowCore.sendConfigMessage(player, "dimensions.locked-timed",
@@ -270,7 +249,7 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
     }
 
     private List<String> matching(List<String> values, String input) {
-        String normalized = input.toLowerCase();
+        String normalized = input.toLowerCase(Locale.ROOT);
         List<String> matches = new ArrayList<>();
         for (String value : values) {
             if (value.startsWith(normalized)) {
@@ -288,13 +267,14 @@ public class LockDimensionCommand implements CommandExecutor, TabCompleter, List
     private static final class DimensionGuiHolder implements InventoryHolder {
         private final GuiPage page;
         private final Dimension dimension;
-        private final Map<Integer, Long> durationBySlot = new HashMap<>();
-        private Inventory inventory;
+        private final Map<Integer, Long> durationBySlot;
+        private final Inventory inventory;
 
-        private DimensionGuiHolder(GuiPage page, Dimension dimension, int size, String title) {
+        private DimensionGuiHolder(GuiPage page, Dimension dimension, int size, String inventoryTitle) {
             this.page = page;
             this.dimension = dimension;
-            this.inventory = Bukkit.createInventory(this, size, title);
+            this.durationBySlot = page == GuiPage.SETTINGS ? new HashMap<>() : Map.of();
+            this.inventory = Bukkit.createInventory(this, size, title(inventoryTitle));
         }
 
         private GuiPage page() {

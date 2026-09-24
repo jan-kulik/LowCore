@@ -6,7 +6,6 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,7 +14,6 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
@@ -23,19 +21,28 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static dev.jalikdev.lowCore.utils.GuiUtil.fill;
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
+
 public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
-    private final LowCore plugin;
-    private final List<String> mainSubcommands = Arrays.asList("gui", "help", "info", "reload");
-    private final List<String> helpTopics = Arrays.asList(
+    private static final int PLAYER_PAGE_SIZE = 45;
+    private static final int[] CRYSTAL_VALUES = {0, 1, 2, 5, 10, 20, 40};
+    private static final int[] CRYSTAL_SLOTS = {10, 11, 12, 13, 14, 15, 16};
+    private static final double[] WARNING_THRESHOLDS = {19.0, 18.0, 17.0, 16.0};
+    private static final double[] SEVERE_THRESHOLDS = {17.0, 15.0, 12.0, 10.0};
+    private static final List<String> MAIN_SUBCOMMANDS = List.of("gui", "help", "info", "reload");
+    private static final List<String> HELP_TOPICS = List.of(
             "lowcore", "ec", "enchant", "feed", "fly", "gm", "hat", "heal", "invsee", "spawnmob"
     );
+
+    private final LowCore plugin;
 
     public LowcoreCommand(LowCore plugin) {
         this.plugin = plugin;
@@ -273,13 +280,11 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         CoreGuiHolder holder = new CoreGuiHolder(CorePage.CRYSTAL, "§8Crystal Cooldown");
         Inventory inventory = holder.inventory;
         fill(inventory);
-        int[] values = {0, 1, 2, 5, 10, 20, 40};
-        int[] slots = {10, 11, 12, 13, 14, 15, 16};
         int current = Math.max(0, plugin.getConfig().getInt("crystal-cooldown.ticks", 0));
-        for (int index = 0; index < values.length; index++) {
-            int ticks = values[index];
-            holder.crystalTicksBySlot.put(slots[index], ticks);
-            inventory.setItem(slots[index], item(ticks == 0 ? Material.BARRIER : Material.CLOCK,
+        for (int index = 0; index < CRYSTAL_VALUES.length; index++) {
+            int ticks = CRYSTAL_VALUES[index];
+            holder.crystalTicksBySlot.put(CRYSTAL_SLOTS[index], ticks);
+            inventory.setItem(CRYSTAL_SLOTS[index], item(ticks == 0 ? Material.BARRIER : Material.CLOCK,
                     (current == ticks ? "&a" : "&e") + (ticks == 0 ? "Disabled" : ticks + " ticks"),
                     ticks == 0 ? "&7Disable placement cooldown." : "&7Approximately " + formatSeconds(ticks) + " seconds.",
                     current == ticks ? "&aCurrently selected" : "&eClick to apply"));
@@ -314,7 +319,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         Runtime runtime = Runtime.getRuntime();
         long used = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         long maximum = runtime.maxMemory() / (1024 * 1024);
-        int chunks = Bukkit.getWorlds().stream().mapToInt(world -> world.getLoadedChunks().length).sum();
+        int chunks = Bukkit.getWorlds().stream().mapToInt(org.bukkit.World::getChunkCount).sum();
         inventory.setItem(10, item(Material.CLOCK, "&aTPS: &f" + String.format(java.util.Locale.ROOT, "%.2f", currentTps),
                 "&7MSPT: &f" + String.format(java.util.Locale.ROOT, "%.2f", mspt)));
         inventory.setItem(12, item(Material.REDSTONE, "&cMemory",
@@ -349,19 +354,29 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         player.openInventory(inventory);
     }
 
-    private void openPlayerSelector(Player player, CorePage page) {
-        String title = page == CorePage.INVSEE_PLAYERS ? "§8Select Inventory" : "§8Select Ender Chest";
-        CoreGuiHolder holder = new CoreGuiHolder(page, title);
-        fill(holder.inventory);
-        int slot = 0;
-        for (Player target : Bukkit.getOnlinePlayers().stream()
+    private void openPlayerSelector(Player player, CorePage page, int requestedPage) {
+        String inventoryTitle = page == CorePage.INVSEE_PLAYERS ? "§8Select Inventory" : "§8Select Ender Chest";
+        List<? extends Player> targets = Bukkit.getOnlinePlayers().stream()
                 .filter(target -> page != CorePage.INVSEE_PLAYERS || !target.getUniqueId().equals(player.getUniqueId()))
-                .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName())).toList()) {
-            if (slot >= 45) break;
+                .sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName()))
+                .toList();
+        int maximumPage = Math.max(0, (targets.size() - 1) / PLAYER_PAGE_SIZE);
+        int selectedPage = Math.max(0, Math.min(requestedPage, maximumPage));
+        CoreGuiHolder holder = new CoreGuiHolder(page, inventoryTitle, selectedPage, maximumPage);
+        fill(holder.inventory);
+        int start = selectedPage * PLAYER_PAGE_SIZE;
+        int end = Math.min(start + PLAYER_PAGE_SIZE, targets.size());
+        for (int index = start; index < end; index++) {
+            int slot = index - start;
+            Player target = targets.get(index);
             holder.playersBySlot.put(slot, target.getUniqueId());
-            holder.inventory.setItem(slot++, playerHead(target));
+            holder.inventory.setItem(slot, playerHead(target));
         }
+        if (selectedPage > 0) holder.inventory.setItem(45, item(Material.ARROW, "&ePrevious page"));
+        holder.inventory.setItem(48, item(Material.PAPER, "&fPage " + (selectedPage + 1)
+                + " / " + (maximumPage + 1), "&7Players: &e" + targets.size()));
         holder.inventory.setItem(49, item(Material.ARROW, "&eBack", "&7Return to utilities."));
+        if (selectedPage < maximumPage) holder.inventory.setItem(53, item(Material.ARROW, "&eNext page"));
         player.openInventory(holder.inventory);
     }
 
@@ -401,9 +416,9 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         if (holder.page == CorePage.PERFORMANCE) {
             switch (slot) {
                 case 20 -> cyclePerformanceThreshold(player, "performance-monitor.warn-tps",
-                        new double[]{19.0, 18.0, 17.0, 16.0}, "warning TPS");
+                        WARNING_THRESHOLDS, "warning TPS");
                 case 24 -> cyclePerformanceThreshold(player, "performance-monitor.severe-tps",
-                        new double[]{17.0, 15.0, 12.0, 10.0}, "severe TPS");
+                        SEVERE_THRESHOLDS, "severe TPS");
                 case 28 -> toggleSetting(player, "performance.enabled", "Performance command");
                 case 30 -> togglePerformanceSetting(player, "performance-monitor.enabled", "Performance monitor");
                 case 32 -> toggleSetting(player, "performance.show-mspt", "Performance MSPT display");
@@ -420,8 +435,8 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
                 case 10 -> player.performCommand("ec");
                 case 12 -> player.performCommand("craft");
                 case 14 -> player.performCommand("anvil");
-                case 16 -> openPlayerSelector(player, CorePage.INVSEE_PLAYERS);
-                case 30 -> openPlayerSelector(player, CorePage.EC_PLAYERS);
+                case 16 -> openPlayerSelector(player, CorePage.INVSEE_PLAYERS, 0);
+                case 30 -> openPlayerSelector(player, CorePage.EC_PLAYERS, 0);
                 case 49 -> openMainGui(player);
                 default -> { }
             }
@@ -429,8 +444,16 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         }
 
         if (holder.page == CorePage.INVSEE_PLAYERS || holder.page == CorePage.EC_PLAYERS) {
+            if (slot == 45 && holder.pageNumber > 0) {
+                openPlayerSelector(player, holder.page, holder.pageNumber - 1);
+                return;
+            }
             if (slot == 49) {
                 openUtilitiesGui(player);
+                return;
+            }
+            if (slot == 53 && holder.pageNumber < holder.maximumPage) {
+                openPlayerSelector(player, holder.page, holder.pageNumber + 1);
                 return;
             }
             UUID targetId = holder.playersBySlot.get(slot);
@@ -511,22 +534,6 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         return result;
     }
 
-    private ItemStack item(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
-        List<String> colored = new ArrayList<>();
-        for (String line : lore) colored.add(ChatColor.translateAlternateColorCodes('&', line));
-        meta.setLore(colored);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void fill(Inventory inventory) {
-        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, filler);
-    }
-
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender,
                                                 @NotNull Command command,
@@ -537,7 +544,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
         if (args.length == 1) {
             String input = args[0].toLowerCase();
-            for (String sub : mainSubcommands) {
+            for (String sub : MAIN_SUBCOMMANDS) {
                 if (sub.startsWith(input)) {
                     result.add(sub);
                 }
@@ -547,7 +554,7 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
         if (args.length == 2 && args[0].equalsIgnoreCase("help")) {
             String input = args[1].toLowerCase();
-            for (String topic : helpTopics) {
+            for (String topic : HELP_TOPICS) {
                 if (topic.startsWith(input)) {
                     result.add(topic);
                 }
@@ -558,28 +565,28 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         return result;
     }
 
-    private List<String> matching(List<String> values, String input) {
-        String normalized = input.toLowerCase();
-        List<String> result = new ArrayList<>();
-        for (String value : values) {
-            if (value.startsWith(normalized)) {
-                result.add(value);
-            }
-        }
-        return result;
-    }
-
     private enum CorePage { MAIN, CRYSTAL, GENERAL, PERFORMANCE, UTILITIES, INVSEE_PLAYERS, EC_PLAYERS }
 
     private static final class CoreGuiHolder implements InventoryHolder {
         private final CorePage page;
-        private final Map<Integer, Integer> crystalTicksBySlot = new HashMap<>();
-        private final Map<Integer, UUID> playersBySlot = new HashMap<>();
+        private final Map<Integer, Integer> crystalTicksBySlot;
+        private final Map<Integer, UUID> playersBySlot;
         private final Inventory inventory;
+        private final int pageNumber;
+        private final int maximumPage;
 
-        private CoreGuiHolder(CorePage page, String title) {
+        private CoreGuiHolder(CorePage page, String inventoryTitle) {
+            this(page, inventoryTitle, 0, 0);
+        }
+
+        private CoreGuiHolder(CorePage page, String inventoryTitle, int pageNumber, int maximumPage) {
             this.page = page;
-            this.inventory = Bukkit.createInventory(this, 54, title);
+            this.pageNumber = pageNumber;
+            this.maximumPage = maximumPage;
+            this.crystalTicksBySlot = page == CorePage.CRYSTAL ? new HashMap<>() : Map.of();
+            this.playersBySlot = page == CorePage.INVSEE_PLAYERS || page == CorePage.EC_PLAYERS
+                    ? new HashMap<>() : Map.of();
+            this.inventory = Bukkit.createInventory(this, 54, title(inventoryTitle));
         }
 
         @Override

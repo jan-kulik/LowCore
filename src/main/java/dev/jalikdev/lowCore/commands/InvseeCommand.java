@@ -2,7 +2,6 @@ package dev.jalikdev.lowCore.commands;
 
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.database.OfflineInventoryRepository;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.*;
@@ -21,9 +20,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
 
     private final LowCore plugin;
     private final OfflineInventoryRepository offlineRepository;
@@ -128,8 +127,8 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
                 return true;
             }
 
-            String title = "§8InvSee §7- §a" + target.getName();
-            Inventory inv = Bukkit.createInventory(viewer, 45, LEGACY.deserialize(title));
+            String inventoryTitle = "§8InvSee §7- §a" + target.getName();
+            Inventory inv = Bukkit.createInventory(viewer, 45, title(inventoryTitle));
 
             stopSession(viewer.getUniqueId());
             syncFromTarget(target, inv);
@@ -186,8 +185,8 @@ public class InvseeCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
-        String title = "§8InvSee §7- §a" + offlineTarget.getName() + " §7(offline)";
-        Inventory inv = Bukkit.createInventory(viewer, 45, LEGACY.deserialize(title));
+        String inventoryTitle = "§8InvSee §7- §a" + offlineTarget.getName() + " §7(offline)";
+        Inventory inv = Bukkit.createInventory(viewer, 45, title(inventoryTitle));
 
         for (int i = 0; i < data.length && i < inv.getSize(); i++) {
             inv.setItem(i, data[i]);

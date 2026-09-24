@@ -3,7 +3,6 @@ package dev.jalikdev.lowCore.commands;
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.trialdrops.TrialDropManager;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -17,15 +16,16 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static dev.jalikdev.lowCore.utils.GuiUtil.item;
+import static dev.jalikdev.lowCore.utils.GuiUtil.title;
 
 public final class TrialDropsCommand implements CommandExecutor, TabCompleter, Listener {
 
@@ -180,23 +180,6 @@ public final class TrialDropsCommand implements CommandExecutor, TabCompleter, L
         }
     }
 
-    private ItemStack item(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(color(name));
-        List<String> coloredLore = new ArrayList<>();
-        for (String line : lore) {
-            coloredLore.add(color(line));
-        }
-        meta.setLore(coloredLore);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private String color(String value) {
-        return ChatColor.translateAlternateColorCodes('&', value);
-    }
-
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                                  @NotNull String alias, @NotNull String[] args) {
@@ -228,10 +211,10 @@ public final class TrialDropsCommand implements CommandExecutor, TabCompleter, L
         private final Map<Integer, Material> materialsBySlot = new HashMap<>();
         private final Inventory inventory;
 
-        private TrialDropsGuiHolder(int page, int maximumPage, String title) {
+        private TrialDropsGuiHolder(int page, int maximumPage, String inventoryTitle) {
             this.page = page;
             this.maximumPage = maximumPage;
-            this.inventory = Bukkit.createInventory(this, 54, title);
+            this.inventory = Bukkit.createInventory(this, 54, title(inventoryTitle));
         }
 
         @Override
