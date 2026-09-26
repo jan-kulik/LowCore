@@ -30,6 +30,7 @@ and multiple clean, well-structured systems.
 - **Control Center** — Configure all major LowCore systems from one `/lowcore` GUI
 - **Admin & Utility GUI** — Open inventories, Ender Chests, crafting and anvils from the control center
 - **Admin Audit Log** — Persistent, paginated history for commands and GUI setting changes
+- **Fishing-Rod Stasis Links** — Persistently hold and remotely release pressure-plate Ender Pearl chambers
 
 ---
 
@@ -38,6 +39,7 @@ and multiple clean, well-structured systems.
 | Command        | Description                       | Permission                             |
 |----------------|-----------------------------------|----------------------------------------|
 | `/lowcore`     | Open the central settings GUI     | `lowcore.command`                      |
+| `/lowcore stasis <list\|remove\|cleanup>` | Inspect and maintain stasis links | `lowcore.admin` |
 | `/lock-dimension <nether\|end> [duration\|lock\|unlock\|status]` | Permanent or timed dimension locks | `lowcore.dimensions` |
 | `/crystal-cooldown <ticks\|off\|status>` | Configure Crystal placement speed | `lowcore.crystal-cooldown` |
 | `/anti-mods [on\|off\|status]` | Open the GUI or toggle client-mod detection | `lowcore.antimods.admin` |
@@ -99,6 +101,19 @@ already inside a locked dimension can always leave it.
 
 The cooldown is tracked separately for every player. `20` ticks are approximately
 one second. Players with `lowcore.crystal-cooldown.bypass` are not limited.
+
+## 🎣 Fishing-Rod Stasis Links
+
+Cast an ordinary fishing rod so its hook settles on a pressure plate. The rod is
+then linked to that plate and the link survives distance, dimension changes,
+logout, chunk unloads, and server restarts. Using the same rod again loads the
+chamber chunk briefly, releases the hidden holder, and lets the vanilla redstone
+and Ender Pearl chamber perform the teleport. Players need
+`lowcore.stasis.use`, which is granted by default.
+
+Bindings are stored in `stasis.yml`. Administrators can inspect them with
+`/lowcore stasis list`, release one with `/lowcore stasis remove <id>`, or clean
+orphaned and duplicate holders in loaded chunks with `/lowcore stasis cleanup`.
 
 ## 🕵️ Anti-Mods
 

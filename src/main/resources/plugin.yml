@@ -354,3 +354,7 @@ permissions:
 
   lowcore.sit:
     default: true
+
+  lowcore.stasis.use:
+    description: Link and trigger fishing-rod stasis chambers
+    default: true

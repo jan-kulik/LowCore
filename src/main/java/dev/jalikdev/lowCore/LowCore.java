@@ -5,6 +5,7 @@ import dev.jalikdev.lowCore.trialdrops.TrialDropManager;
 import dev.jalikdev.lowCore.commands.*;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager;
 import dev.jalikdev.lowCore.performance.PerformanceMonitor;
+import dev.jalikdev.lowCore.stasis.StasisManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
@@ -43,6 +44,7 @@ public class LowCore extends JavaPlugin {
     private DimensionLockManager dimensionLockManager;
     private AntiFreecamManager antiFreecamManager;
     private TrialDropManager trialDropManager;
+    private StasisManager stasisManager;
     private InvseeCommand invseeCommand;
     private EcCommand ecCommand;
     private VanishCommand vanishCommand;
@@ -90,7 +92,11 @@ public class LowCore extends JavaPlugin {
         antiFreecamLogRepository = new AntiFreecamLogRepository(databaseManager);
         antiFreecamManager = new AntiFreecamManager(this, antiFreecamLogRepository);
 
-        LowcoreCommand lowcoreCommand = new LowcoreCommand(this);
+        stasisManager = new StasisManager(this);
+        getServer().getPluginManager().registerEvents(stasisManager, this);
+        stasisManager.initializeLoadedChunks();
+
+        LowcoreCommand lowcoreCommand = new LowcoreCommand(this, stasisManager);
         Objects.requireNonNull(getCommand("lowcore")).setExecutor(lowcoreCommand);
         Objects.requireNonNull(getCommand("lowcore")).setTabCompleter(lowcoreCommand);
         getServer().getPluginManager().registerEvents(lowcoreCommand, this);
@@ -275,6 +281,10 @@ public class LowCore extends JavaPlugin {
 
         if (dimensionLockManager != null) {
             dimensionLockManager.stop();
+        }
+
+        if (stasisManager != null) {
+            stasisManager.shutdown();
         }
 
         if (databaseManager != null) {
@@ -491,5 +501,9 @@ public class LowCore extends JavaPlugin {
 
     public AntiFreecamLogRepository getAntiFreecamLogRepository() {
         return antiFreecamLogRepository;
+    }
+
+    public StasisManager getStasisManager() {
+        return stasisManager;
     }
 }

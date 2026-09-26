@@ -151,6 +151,12 @@ lowcore:
   messages:
     help-unknown-topic: "&cNo detailed help available for &f%topic%&c."
 
+stasis:
+  messages:
+    linked: "&aStasis chamber linked."
+    triggered: "&aStasis chamber triggered."
+    unavailable: "&cStasis chamber is no longer available."
+
 admin:
   messages:
     usage: "&7LowCore admin command:&r\n&8- &e/lowcoreadmin offinv clear <player> &7- clear offline inventory data for one player&r\n&8- &e/lowcoreadmin offinv clearall &7- clear all offline inventory data"

@@ -17,6 +17,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 import dev.jalikdev.lowCore.LowCore;
 import dev.jalikdev.lowCore.dimensions.DimensionLockManager.Dimension;
+import dev.jalikdev.lowCore.stasis.StasisBinding;
+import dev.jalikdev.lowCore.stasis.StasisManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,15 +39,17 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
     private static final int[] CRYSTAL_SLOTS = {10, 11, 12, 13, 14, 15, 16};
     private static final double[] WARNING_THRESHOLDS = {19.0, 18.0, 17.0, 16.0};
     private static final double[] SEVERE_THRESHOLDS = {17.0, 15.0, 12.0, 10.0};
-    private static final List<String> MAIN_SUBCOMMANDS = List.of("gui", "help", "info", "reload");
+    private static final List<String> MAIN_SUBCOMMANDS = List.of("gui", "help", "info", "reload", "stasis");
     private static final List<String> HELP_TOPICS = List.of(
             "lowcore", "ec", "enchant", "feed", "fly", "gm", "hat", "heal", "invsee", "spawnmob"
     );
 
     private final LowCore plugin;
+    private final StasisManager stasisManager;
 
-    public LowcoreCommand(LowCore plugin) {
+    public LowcoreCommand(LowCore plugin, StasisManager stasisManager) {
         this.plugin = plugin;
+        this.stasisManager = stasisManager;
     }
 
     @Override
@@ -96,7 +100,68 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
+        if (sub.equals("stasis")) {
+            return handleStasis(sender, args);
+        }
+
         sendMainHelp(sender);
+        return true;
+    }
+
+    private boolean handleStasis(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("lowcore.admin")) {
+            LowCore.sendConfigMessage(sender, "no-permission");
+            return true;
+        }
+        if (args.length < 2) {
+            LowCore.sendMessage(sender, "&7Usage: &e/lowcore stasis <list|remove <id>|cleanup>");
+            return true;
+        }
+
+        if (args[1].equalsIgnoreCase("list")) {
+            List<StasisBinding> bindings = stasisManager.getBindings().stream()
+                    .sorted((left, right) -> left.id().compareTo(right.id()))
+                    .toList();
+            LowCore.sendMessage(sender, "&7Stasis bindings: &e" + bindings.size());
+            for (StasisBinding binding : bindings) {
+                LowCore.sendMessage(sender, "&e" + binding.id() + " &7- &f" + binding.worldName()
+                        + " &7(" + binding.x() + ", " + binding.y() + ", " + binding.z() + ")"
+                        + " &8owner " + binding.ownerId());
+            }
+            return true;
+        }
+
+        if (args[1].equalsIgnoreCase("remove")) {
+            if (args.length < 3) {
+                LowCore.sendMessage(sender, "&7Usage: &e/lowcore stasis remove <id>");
+                return true;
+            }
+            UUID id = stasisManager.resolveBindingId(args[2]);
+            if (id == null) {
+                LowCore.sendMessage(sender, "&cNo unique stasis binding matches &e" + args[2] + "&c.");
+                return true;
+            }
+            StasisManager.TriggerResult result = stasisManager.removeBinding(id);
+            if (result == StasisManager.TriggerResult.TRIGGERED) {
+                LowCore.sendMessage(sender, "&aRemoved and released stasis binding &e" + id + "&a.");
+            } else {
+                LowCore.sendMessage(sender, "&eRemoved stasis binding &f" + id
+                        + "&e; its pressure plate was unavailable.");
+            }
+            plugin.audit(sender, "Removed stasis binding " + id);
+            return true;
+        }
+
+        if (args[1].equalsIgnoreCase("cleanup")) {
+            StasisManager.CleanupResult result = stasisManager.cleanupLoadedChunks();
+            LowCore.sendMessage(sender, "&aStasis cleanup complete. &7Removed: &e" + result.removed()
+                    + "&7, recreated: &e" + result.recreated() + "&7.");
+            plugin.audit(sender, "Cleaned stasis holders (removed " + result.removed()
+                    + ", recreated " + result.recreated() + ")");
+            return true;
+        }
+
+        LowCore.sendMessage(sender, "&7Usage: &e/lowcore stasis <list|remove <id>|cleanup>");
         return true;
     }
 
@@ -388,10 +453,10 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
         if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != top) return;
         int slot = event.getSlot();
         if (holder.page == CorePage.CRYSTAL) {
-            if (slot == 22) openMainGui(player);
+            if (slot == 22) runNextTick(player, () -> openMainGui(player));
             else if (holder.crystalTicksBySlot.containsKey(slot)) {
                 player.performCommand("crystal-cooldown " + holder.crystalTicksBySlot.get(slot));
-                openCrystalGui(player);
+                runNextTick(player, () -> openCrystalGui(player));
             }
             return;
         }
@@ -406,10 +471,10 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
                 case 30 -> togglePerformanceSetting(player, "performance-monitor.enabled", "Performance monitor");
                 case 32 -> toggleSetting(player, "lag-cleanup.enabled", "Lag cleanup");
                 case 34 -> toggleSetting(player, "lag-cleanup.confirm-required", "Cleanup confirmation");
-                case 49 -> openMainGui(player);
+                case 49 -> runNextTick(player, () -> openMainGui(player));
                 default -> { return; }
             }
-            if (slot != 49) openGeneralGui(player);
+            if (slot != 49) runNextTick(player, () -> openGeneralGui(player));
             return;
         }
 
@@ -423,21 +488,23 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
                 case 30 -> togglePerformanceSetting(player, "performance-monitor.enabled", "Performance monitor");
                 case 32 -> toggleSetting(player, "performance.show-mspt", "Performance MSPT display");
                 case 34 -> toggleSetting(player, "performance.show-chunks", "Performance chunk display");
-                case 49 -> openMainGui(player);
+                case 49 -> runNextTick(player, () -> openMainGui(player));
                 default -> { return; }
             }
-            if (slot != 49) openPerformanceGui(player);
+            if (slot != 49) runNextTick(player, () -> openPerformanceGui(player));
             return;
         }
 
         if (holder.page == CorePage.UTILITIES) {
             switch (slot) {
-                case 10 -> player.performCommand("ec");
-                case 12 -> player.performCommand("craft");
-                case 14 -> player.performCommand("anvil");
-                case 16 -> openPlayerSelector(player, CorePage.INVSEE_PLAYERS, 0);
-                case 30 -> openPlayerSelector(player, CorePage.EC_PLAYERS, 0);
-                case 49 -> openMainGui(player);
+                case 10 -> runNextTick(player, () -> player.performCommand("ec"));
+                case 12 -> runNextTick(player, () -> player.performCommand("craft"));
+                case 14 -> runNextTick(player, () -> player.performCommand("anvil"));
+                case 16 -> runNextTick(player,
+                        () -> openPlayerSelector(player, CorePage.INVSEE_PLAYERS, 0));
+                case 30 -> runNextTick(player,
+                        () -> openPlayerSelector(player, CorePage.EC_PLAYERS, 0));
+                case 49 -> runNextTick(player, () -> openMainGui(player));
                 default -> { }
             }
             return;
@@ -445,41 +512,50 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
 
         if (holder.page == CorePage.INVSEE_PLAYERS || holder.page == CorePage.EC_PLAYERS) {
             if (slot == 45 && holder.pageNumber > 0) {
-                openPlayerSelector(player, holder.page, holder.pageNumber - 1);
+                runNextTick(player, () -> openPlayerSelector(player, holder.page, holder.pageNumber - 1));
                 return;
             }
             if (slot == 49) {
-                openUtilitiesGui(player);
+                runNextTick(player, () -> openUtilitiesGui(player));
                 return;
             }
             if (slot == 53 && holder.pageNumber < holder.maximumPage) {
-                openPlayerSelector(player, holder.page, holder.pageNumber + 1);
+                runNextTick(player, () -> openPlayerSelector(player, holder.page, holder.pageNumber + 1));
                 return;
             }
             UUID targetId = holder.playersBySlot.get(slot);
             Player target = targetId == null ? null : Bukkit.getPlayer(targetId);
-            if (target != null) player.performCommand((holder.page == CorePage.INVSEE_PLAYERS ? "invsee " : "ec ")
-                    + target.getName());
+            if (target != null) {
+                String targetCommand = (holder.page == CorePage.INVSEE_PLAYERS ? "invsee " : "ec ")
+                        + target.getName();
+                runNextTick(player, () -> player.performCommand(targetCommand));
+            }
             return;
         }
 
         switch (slot) {
-            case 10 -> player.performCommand("lock-dimension");
-            case 12 -> openCrystalGui(player);
-            case 14 -> player.performCommand("anti-mods");
-            case 16 -> player.performCommand("trial-drops");
-            case 28 -> openPerformanceGui(player);
-            case 30 -> player.performCommand("cleanup");
-            case 32 -> player.performCommand("log");
-            case 34 -> openGeneralGui(player);
-            case 46 -> openUtilitiesGui(player);
-            case 48 -> {
+            case 10 -> runNextTick(player, () -> player.performCommand("lock-dimension"));
+            case 12 -> runNextTick(player, () -> openCrystalGui(player));
+            case 14 -> runNextTick(player, () -> player.performCommand("anti-mods"));
+            case 16 -> runNextTick(player, () -> player.performCommand("trial-drops"));
+            case 28 -> runNextTick(player, () -> openPerformanceGui(player));
+            case 30 -> runNextTick(player, () -> player.performCommand("cleanup"));
+            case 32 -> runNextTick(player, () -> player.performCommand("log"));
+            case 34 -> runNextTick(player, () -> openGeneralGui(player));
+            case 46 -> runNextTick(player, () -> openUtilitiesGui(player));
+            case 48 -> runNextTick(player, () -> {
                 player.closeInventory();
                 player.performCommand("lowcore reload");
-            }
-            case 49 -> player.closeInventory();
+            });
+            case 49 -> runNextTick(player, player::closeInventory);
             default -> { }
         }
+    }
+
+    private void runNextTick(Player player, Runnable action) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) action.run();
+        });
     }
 
     @EventHandler
@@ -560,6 +636,25 @@ public class LowcoreCommand implements CommandExecutor, TabCompleter, Listener {
                 }
             }
             return result;
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("stasis")
+                && sender.hasPermission("lowcore.admin")) {
+            String input = args[1].toLowerCase();
+            for (String option : List.of("list", "remove", "cleanup")) {
+                if (option.startsWith(input)) result.add(option);
+            }
+            return result;
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("stasis")
+                && args[1].equalsIgnoreCase("remove") && sender.hasPermission("lowcore.admin")) {
+            String input = args[2].toLowerCase();
+            return stasisManager.getBindings().stream()
+                    .map(binding -> binding.id().toString())
+                    .filter(id -> id.startsWith(input))
+                    .sorted()
+                    .toList();
         }
 
         return result;

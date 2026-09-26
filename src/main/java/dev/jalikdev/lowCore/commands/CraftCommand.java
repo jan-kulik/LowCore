@@ -8,7 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import dev.jalikdev.lowCore.LowCore;
-import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.MenuType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,7 +50,10 @@ public class CraftCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        target.openInventory(Bukkit.createInventory(target, InventoryType.WORKBENCH));
+        MenuType.CRAFTING.builder()
+                .checkReachable(false)
+                .build(target)
+                .open();
         LowCore.sendConfigMessage(target, "misc.craft-opened");
         return true;
     }

@@ -22,6 +22,7 @@ class ConfigurationResourceTest {
         assertTrue(plugin.contains("permissions.lowcore.invsee.edit"));
         assertTrue(plugin.contains("permissions.lowcore.performance.notify"));
         assertTrue(plugin.contains("permissions.lowcore.update"));
+        assertTrue(plugin.getBoolean("permissions.lowcore.stasis.use.default"));
     }
 
     @Test
